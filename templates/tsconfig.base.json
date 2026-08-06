@@ -1,0 +1,36 @@
+{
+  "$comment": [
+    "Base compiler options required by reference/typescript.md.",
+    "",
+    "MERGE these into the framework's generated tsconfig - do not replace it.",
+    "Frameworks set jsx, lib, moduleResolution, module, and types deliberately;",
+    "overwriting them breaks the build in ways that are annoying to diagnose.",
+    "",
+    "For a LEGACY project do not enable all of these at once. Ratchet one flag at",
+    "a time in the order given in reference/legacy-adoption.md - strictNullChecks",
+    "and noUncheckedIndexedAccess are real work, not config changes.",
+    "",
+    "Set `paths` to match the bundler alias. An alias configured in tsconfig but",
+    "not in the bundler typechecks fine and fails at runtime."
+  ],
+
+  "compilerOptions": {
+    "strict": true,
+
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}

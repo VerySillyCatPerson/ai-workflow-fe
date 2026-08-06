@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/ai-workflow-fe/project.schema.json",
+  "title": "Frontend standards project policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "standardsVersion", "mode", "framework", "platform", "limits", "typescript", "testing", "stack", "commands", "deviations"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "standardsVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "mode": { "enum": ["greenfield", "legacy"] },
+    "framework": { "enum": ["unset", "nextjs", "react", "vue", "angular", "react-native"] },
+    "platform": { "enum": ["unset", "web", "native"] },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["componentReviewLines", "postSplitTargetLines", "extractionReviewLines", "pullRequestReviewLines", "propDrillingDepth", "minimumTouchTarget", "minimumContrast"],
+      "properties": {
+        "componentReviewLines": { "type": "integer", "minimum": 1 },
+        "postSplitTargetLines": { "type": "integer", "minimum": 1 },
+        "extractionReviewLines": { "type": "integer", "minimum": 1 },
+        "pullRequestReviewLines": { "type": "integer", "minimum": 1 },
+        "propDrillingDepth": { "type": "integer", "minimum": 0 },
+        "minimumTouchTarget": { "type": "number", "exclusiveMinimum": 0 },
+        "minimumContrast": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "typescript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anyPolicy", "typeAssertionPolicy", "explicitParameterTypes", "explicitReturnTypes", "strictness"],
+      "properties": {
+        "anyPolicy": { "enum": ["forbid", "external-boundaries", "allow-with-reason"] },
+        "typeAssertionPolicy": { "enum": ["forbid", "narrowing-only", "allow-with-reason"] },
+        "explicitParameterTypes": { "enum": ["all", "public-boundaries", "inferred-when-clear"] },
+        "explicitReturnTypes": { "enum": ["all", "public-boundaries", "inferred-when-clear"] },
+        "strictness": { "enum": ["strict", "incremental", "project-config"] }
+      }
+    },
+    "testing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshotPolicy", "coverage"],
+      "properties": {
+        "snapshotPolicy": { "enum": ["forbid", "allow-with-reason", "allow"] },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "lines", "branches", "functions", "statements"],
+          "properties": {
+            "mode": { "enum": ["whole-repository", "changed-files", "ratchet", "report-only", "disabled"] },
+            "lines": { "type": "number", "minimum": 0, "maximum": 100 },
+            "branches": { "type": "number", "minimum": 0, "maximum": 100 },
+            "functions": { "type": "number", "minimum": 0, "maximum": 100 },
+            "statements": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        }
+      }
+    },
+    "stack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["styling", "stateManagement", "serverState", "unitTestRunner", "e2eRunner"],
+      "properties": {
+        "styling": { "type": ["string", "null"] },
+        "stateManagement": { "type": ["string", "null"] },
+        "serverState": { "type": ["string", "null"] },
+        "unitTestRunner": { "type": ["string", "null"] },
+        "e2eRunner": { "type": ["string", "null"] }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "lint", "typecheck", "test", "coverage", "build"],
+      "properties": {
+        "format": { "type": ["string", "null"] },
+        "lint": { "type": ["string", "null"] },
+        "lintChanged": { "type": ["string", "null"] },
+        "typecheck": { "type": ["string", "null"] },
+        "test": { "type": ["string", "null"] },
+        "coverage": { "type": ["string", "null"] },
+        "build": { "type": ["string", "null"] }
+      }
+    },
+    "deviations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule", "reason", "owner", "review"],
+        "properties": {
+          "rule": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "owner": { "type": "string", "minLength": 1 },
+          "review": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

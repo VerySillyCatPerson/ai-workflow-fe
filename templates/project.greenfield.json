@@ -1,0 +1,31 @@
+{
+  "$schema": "./project.schema.json",
+  "schemaVersion": 1,
+  "standardsVersion": "1.0.0",
+  "mode": "greenfield",
+  "framework": "unset",
+  "platform": "unset",
+  "limits": {
+    "componentReviewLines": 200,
+    "postSplitTargetLines": 80,
+    "extractionReviewLines": 30,
+    "pullRequestReviewLines": 400,
+    "propDrillingDepth": 2,
+    "minimumTouchTarget": 44,
+    "minimumContrast": 4.5
+  },
+  "typescript": {
+    "anyPolicy": "forbid",
+    "typeAssertionPolicy": "narrowing-only",
+    "explicitParameterTypes": "public-boundaries",
+    "explicitReturnTypes": "public-boundaries",
+    "strictness": "strict"
+  },
+  "testing": {
+    "snapshotPolicy": "allow-with-reason",
+    "coverage": { "mode": "whole-repository", "lines": 90, "branches": 85, "functions": 90, "statements": 90 }
+  },
+  "stack": { "styling": "unset", "stateManagement": "unset", "serverState": "unset", "unitTestRunner": null, "e2eRunner": "unset" },
+  "commands": { "format": null, "lint": null, "lintChanged": null, "typecheck": null, "test": null, "coverage": null, "build": null },
+  "deviations": []
+}

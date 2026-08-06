@@ -1,0 +1,103 @@
+{
+  "$comment": [
+    "Copy to .claude/settings.json in the consuming project and COMMIT it, so the",
+    "whole team gets the same guardrails.",
+    "",
+    "This is the ENFORCED half of core/guardrails.md. Prose in a standards file is",
+    "advisory - the model can misread it, or an instruction elsewhere can outweigh",
+    "it. These rules are applied by the harness before a tool runs, so they hold",
+    "regardless of what the model concluded.",
+    "",
+    "deny = blocked outright. ask = prompts for approval every time.",
+    "Verify the matcher syntax against your Claude Code version with /permissions",
+    "before relying on it - schema details do change between releases.",
+    "",
+    "THREE LAYERS, weakest to strongest:",
+    "  1. prose in core/  - the model should follow it",
+    "  2. permissions     - the harness asks or refuses before a tool runs",
+    "  3. hooks           - the harness runs code on tool events",
+    "Hooks are the only layer that can act. Copy templates/hooks/ to .claude/hooks/",
+    "alongside this file, or the hook commands below will silently no-op."
+  ],
+
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Read(./**/*.p12)",
+      "Read(./**/*.keystore)",
+      "Read(./**/id_rsa*)",
+      "Read(./**/credentials*)",
+      "Read(./**/secrets.*)",
+      "Read(./**/google-services.json)",
+      "Read(./**/GoogleService-Info.plist)",
+      "Read(./**/.npmrc)",
+      "Read(./**/.netrc)",
+      "Bash(cat:*.env*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git commit --no-verify:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -fd:*)"
+    ],
+
+    "ask": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git checkout:*)",
+      "Bash(git restore:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm publish:*)",
+      "Bash(yarn add:*)",
+      "Bash(pnpm add:*)",
+      "Bash(rm:*)",
+      "Bash(docker:*)"
+    ],
+
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guard-paths.mjs"
+          }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/check-changed.mjs"
+          },
+          {
+            "type": "command",
+            "command": "node .claude/hooks/typecheck.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}

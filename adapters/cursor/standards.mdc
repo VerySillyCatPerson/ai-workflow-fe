@@ -1,0 +1,58 @@
+---
+description: Frontend engineering standards — always applied. Guardrails, limits, types, naming, error handling, comments, documentation.
+alwaysApply: true
+---
+
+# {Project Name} — Standards
+
+Read these before writing code. They are the project's standards, not suggestions.
+
+- `standards/core/guardrails.md` — **overrides everything else.** Commit approval,
+  no attribution trailers, no credential access, honest reporting
+- `standards/core/rules.md` — limits, types, naming, errors, comments, docs
+- `standards/platform/{web|native}.md` — whichever this project installed
+- `standards/framework/{stack}.md` — whichever this project installed
+
+`standards/core/rules.md` opens with a routing table mapping each kind of task to
+the `standards/reference/…` file to read first. Follow it. Those files are
+deliberately not loaded up front.
+
+## Workflows
+
+`workflows/*.md` are prompt documents for recurring tasks — component scaffolding,
+tests, review, PR prep, audits, visual verification. When asked to do one, read
+the file and follow it. `workflows/` lists the full set.
+
+## Project specifics
+
+Deviations go here, never in `standards/` — that directory is shared and gets
+overwritten on sync.
+
+- **Stack:** {nextjs | react | vue | angular | react-native}
+- **Project mode:** {greenfield | legacy}
+- **Project policy:** `standards/project.json` (thresholds, strictness, stack choices, commands)
+- **Component library:** {package, docs URL}
+- **i18n:** {library and locales path, or "single locale"}
+- **Test utils:** `@/utils/test-utils`
+- **Deviations:** {none, or list with reason + owner + review date}
+
+---
+
+## Scoping in a monorepo
+
+Cursor applies rules by glob. For a monorepo with more than one stack, split this
+into per-app files so the mobile app never receives web rules:
+
+`.cursor/rules/web.mdc`
+
+```yaml
+---
+description: Web app standards
+globs: ["apps/web/**"]
+alwaysApply: false
+---
+```
+
+…pointing at `standards/platform/web.md` + `standards/framework/vue.md`, and a
+matching `native.mdc` for `apps/mobile/**`. Keep guardrails and `core/rules.md` in
+this always-applied file.

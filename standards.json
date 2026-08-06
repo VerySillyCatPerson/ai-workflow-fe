@@ -1,0 +1,38 @@
+{
+  "name": "ai-workflow-fe",
+  "version": "1.0.0",
+  "updated": "2026-08-06",
+
+  "$comment": [
+    "This file is copied into each consuming project as standards/standards.json.",
+    "It is how the standards sync detects which version a project is running and",
+    "whether local edits have diverged from source.",
+    "",
+    "BUMP THE VERSION ON EVERY material distributed change: standards, workflows,",
+    "adapters, manifests, templates, installer, validator, or enforcement hooks.",
+    "",
+    "major - a rule was removed, inverted, or a layer restructured.",
+    "minor - a rule or reference file was added.",
+    "patch - wording, typos, or clarification."
+  ],
+
+  "layers": {
+    "resident": [
+      "standards/core/guardrails.md",
+      "standards/core/rules.md",
+      "standards/platform/",
+      "standards/framework/"
+    ],
+    "optional": ["standards/core/optional/"],
+    "onDemand": ["standards/reference/", "workflows/"]
+  },
+
+  "toolAgnostic": {
+    "$comment": "standards/ is tool-neutral; workflow bodies are portable while frontmatter may be adapter-oriented.",
+    "source": ["standards/", "workflows/"],
+    "adapters": ["adapters/claude", "adapters/agents", "adapters/cursor", "adapters/copilot"],
+    "enforcement": "enforcement/ — git hooks and local checks"
+  },
+
+  "changelog": {}
+}

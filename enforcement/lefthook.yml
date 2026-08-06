@@ -1,0 +1,15 @@
+# Optional local guard template. It runs only after the consuming project adapts
+# and installs it; it is not a CI backstop. Validation commands are project-
+# specific and belong in standards/project.json, so this file does not guess
+# package managers, script names, or coverage behavior.
+
+pre-commit:
+  parallel: true
+  commands:
+    guard-paths:
+      glob: '*'
+      run: node enforcement/hooks/guard-staged.mjs {staged_files}
+
+    # Add format, lint, typecheck, test, coverage, build, and commit-message
+    # commands only when project.json declares the corresponding command or
+    # policy. Do not use npx or assume npm, pnpm, Yarn, or a test runner.
