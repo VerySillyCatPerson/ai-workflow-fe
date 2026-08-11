@@ -44,5 +44,5 @@ Scaffolds and paths: `reference/scaffold-react-native.md`.
 
 Testing follows `project.json#stack.unitTestRunner`; E2E follows
 `project.json#stack.e2eRunner`. Use installed references matching those choices.
-Execute only validation commands declared under `project.json#commands`. Shared
+Execute only validation commands declared in trusted `standards/execution.json`. Shared
 state follows `project.json#stack.stateManagement`.

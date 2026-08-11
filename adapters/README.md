@@ -33,7 +33,7 @@ repository does not ship or validate a dedicated adapter for it.
 
 1. Install with `--adapter claude|codex|cursor|copilot` (comma-separate multiple)
 2. Fill the installed entry file's Project specifics
-3. Fill every stack choice and validation command in `standards/project.json`
+3. Fill stack choices in `standards/project.json` and human-review validation commands in trusted `standards/execution.json`
 4. Optionally adapt and install `enforcement/` (see below)
 
 Using two tools on one repo is fine: install both adapters. They point at the

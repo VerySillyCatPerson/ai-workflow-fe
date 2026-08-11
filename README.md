@@ -1,5 +1,10 @@
 ﻿# ai-workflow-fe
 
+This is not a prompt collection. It is a versioned policy and context layer for
+coding agents: portable engineering standards, selective context loading,
+guardrails, and tool-specific adapters that can be adopted safely in existing
+projects without replacing their architecture.
+
 A set of coding standards your AI assistant actually reads and follows — across
 Next.js, React, Vue, Angular, and React Native, and across Claude Code, Codex,
 Cursor, and Copilot.
@@ -101,7 +106,8 @@ commands and skills — and nothing else is touched:
 standards/
   core/guardrails.md    the "always ask first" rules
   core/rules.md         the rules that apply to everything you write
-  project.json          your thresholds and tool choices — you fill this in
+  project.json          thresholds, tool choices, and opt-in capabilities
+  execution.json        trusted local commands — humans review changes
   platform/ framework/ reference/
 workflows/              step-by-step guides: component, test, review, verify…
 ```
@@ -113,14 +119,14 @@ node scripts/standards.mjs check --target ../my-app
 ```
 ```
 Installation invalid:
-- greenfield commands.lint must be configured
-- greenfield commands.test must be configured
+- greenfield execution commands.lint must be configured
+- greenfield execution commands.test must be configured
 - greenfield stack.styling must be configured; use "none" when deliberately unused
   …
 ```
 
-Fill those into `standards/project.json` — your real commands, your styling and
-state choices — and run it again:
+Fill policy into `standards/project.json` and real validation commands into
+trusted `standards/execution.json`, then run it again:
 
 ```
 Standards 1.0.0: greenfield vue/web; policy and routes valid.
@@ -225,12 +231,16 @@ Most numbers and tool choices are not fixed. They live in
 { "testing": { "snapshotPolicy": "allow-with-reason" } }
 ```
 
-Your commands live there too. `commands.lint` runs at the end of a turn. On a
+Executable commands live separately in `standards/execution.json`. This is
+trusted executable configuration: agents must not modify it without explicit
+human approval. String commands intentionally use the system shell for
+compatibility; structured commands are invoked directly and are preferred where
+practical. `commands.lint` runs at the end of a turn. On a
 large or legacy repo you can add `commands.lintChanged`, which runs instead
 whenever files have changed:
 
 ```json
-{ "commands": { "lint": "npm run lint", "lintChanged": "npm run lint:changed" } }
+{ "commands": { "lint": { "executable": "npm", "args": ["run", "lint"] }, "lintChanged": "npm run lint:changed" } }
 ```
 
 Two things to know before you set it. The paths arrive as a JSON array in the
@@ -242,6 +252,22 @@ altogether rather than falling back to `commands.lint`.
 Never edit the shared files under `standards/core`, `platform`, `framework`, or
 `reference`. Those get replaced when you sync; your `project.json` does not.
 
+Integrations are opt-in capabilities, never core standards. Install their
+on-demand policy and workflows with `add-module --module figma` or
+`add-module --module jira`, then enable only what the project uses:
+
+```json
+{
+  "integrations": {
+    "figma": { "enabled": true, "mode": "read", "componentMapping": true },
+    "jira": { "enabled": true, "projectKeys": ["WEB"], "write": "confirm" }
+  }
+}
+```
+
+These values describe capability and permission policy only. Credentials and
+sessions belong to the user's integration client and must never be committed.
+
 Rules come in four strengths, which tells you what you are allowed to change:
 
 - **Guardrails** — safety and authorization. Never commit unasked, never read a
@@ -249,7 +275,7 @@ Rules come in four strengths, which tells you what you are allowed to change:
 - **Invariants** — shared engineering outcomes. Changeable, but it belongs in
   `deviations` with a reason, an owner, and a review date, so it expires instead
   of quietly becoming permanent.
-- **Configurable policy** — thresholds, strictness, tools, commands. Yours. Edit
+- **Configurable policy** — thresholds, strictness, tools, integrations. Yours. Edit
   `project.json`.
 - **Recommendations** — strong defaults that yield to evidence and to whatever
   architecture you already have.
@@ -364,9 +390,13 @@ node scripts/standards.mjs install --target ../project --manifest vue --mode leg
 # Check an installed project
 node scripts/standards.mjs check --target ../project
 
-# Sync; preview first, then --apply. project.json and deviations are preserved
+# Sync; preview first, then --apply. project.json and execution.json are preserved
 node scripts/standards.mjs sync --target ../project
 node scripts/standards.mjs sync --target ../project --apply
+
+# Uninstall unmodified managed files; local and project-owned files are preserved
+node scripts/standards.mjs uninstall --target ../project
+node scripts/standards.mjs uninstall --target ../project --apply
 
 # Add or drop an optional rule set
 node scripts/standards.mjs add-module --target ../project --module forms --apply
@@ -389,7 +419,7 @@ ship a reference for, then write its real name into `project.json`.
 
 Node built-ins only. This is not an npm package, and its tooling never installs
 anything. Your app can use whatever package manager it likes — its commands go in
-`project.json`.
+trusted `standards/execution.json`.
 
 </details>
 

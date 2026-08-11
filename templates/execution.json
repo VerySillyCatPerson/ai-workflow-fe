@@ -1,0 +1,13 @@
+{
+  "$schema": "./execution.schema.json",
+  "schemaVersion": 1,
+  "commands": {
+    "format": null,
+    "lint": null,
+    "lintChanged": null,
+    "typecheck": null,
+    "test": null,
+    "coverage": null,
+    "build": null
+  }
+}

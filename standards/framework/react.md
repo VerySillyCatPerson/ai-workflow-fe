@@ -44,5 +44,5 @@ choice, Tailwind is one recommendation, not a React requirement.
 Scaffolds and paths: `reference/scaffold-react.md`.
 
 Testing follows `project.json#stack.unitTestRunner` and its installed matching
-reference. Execute only validation commands declared under `project.json#commands`.
+reference. Execute only validation commands declared in trusted `standards/execution.json`.
 Shared state follows `project.json#stack.stateManagement`.

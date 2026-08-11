@@ -5,7 +5,8 @@ Terse by design. Detail lives in `reference/`, read on demand.
 ## Effective project policy
 
 Read `standards/project.json` before applying thresholds, tool choices, coverage,
-or validation commands. It is the canonical project policy. Shared standards
+or integration policy. Read validation commands only from trusted
+`standards/execution.json`. Shared standards
 define principles; the policy defines how this repository applies them.
 
 Rules have four strengths:

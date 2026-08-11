@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Trusted local validation commands",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "commands"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "lint", "typecheck", "test", "coverage", "build"],
+      "properties": {
+        "format": { "$ref": "#/$defs/command" }, "lint": { "$ref": "#/$defs/command" },
+        "lintChanged": { "$ref": "#/$defs/command" }, "typecheck": { "$ref": "#/$defs/command" },
+        "test": { "$ref": "#/$defs/command" }, "coverage": { "$ref": "#/$defs/command" },
+        "build": { "$ref": "#/$defs/command" }
+      }
+    }
+  },
+  "$defs": {
+    "command": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "minLength": 1 },
+        { "type": "object", "additionalProperties": false, "required": ["executable", "args"], "properties": { "executable": { "type": "string", "minLength": 1 }, "args": { "type": "array", "items": { "type": "string" } } } }
+      ]
+    }
+  }
+}

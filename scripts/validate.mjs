@@ -33,6 +33,7 @@ const requirePath = (path, owner) => {
 };
 const marker = json('standards.json');
 const schema = json('templates/project.schema.json');
+json('templates/execution.schema.json');
 const presets = ['templates/project.greenfield.json', 'templates/project.legacy.json'];
 
 function walk(dir) {
@@ -127,7 +128,7 @@ for (const file of frameworkFiles) {
   const content = readFileSync(join(root, file), 'utf8');
   if (/^Scripts:/m.test(content)) errors.push(`${file} hardcodes resident script names`);
   if (/reference\/testing-(jest|vitest|angular|rntl)/.test(content)) errors.push(`${file} hardcodes a unit-test runner reference`);
-  if (!content.includes('project.json#commands')) errors.push(`${file} does not defer validation commands to project policy`);
+  if (!content.includes('standards/execution.json')) errors.push(`${file} does not defer validation commands to trusted execution policy`);
 }
 const standardsAndWorkflows = [...walk('standards'), ...walk('workflows')].filter((x) => x.endsWith('.md')).map((file) => readFileSync(join(root, file), 'utf8')).join('\n');
 for (const key of ['stack.styling', 'stack.stateManagement', 'stack.serverState', 'stack.unitTestRunner', 'stack.e2eRunner']) {
@@ -151,9 +152,12 @@ const generatedDir = mkdtempSync(join(tmpdir(), 'ai-workflow-fe-'));
 const configureProjectPolicy = (target) => {
   const path = join(target, 'standards/project.json');
   const policy = JSON.parse(readFileSync(path, 'utf8'));
-  for (const key of ['lint', 'typecheck', 'test', 'coverage', 'build']) policy.commands[key] = `${process.execPath} --version`;
   if (policy.mode === 'greenfield') for (const key of ['styling', 'stateManagement', 'serverState', 'e2eRunner']) policy.stack[key] = 'none';
   writeFileSync(path, JSON.stringify(policy), 'utf8');
+  const executionPath = join(target, 'standards/execution.json');
+  const execution = JSON.parse(readFileSync(executionPath, 'utf8'));
+  for (const key of ['lint', 'typecheck', 'test', 'coverage', 'build']) execution.commands[key] = { executable: process.execPath, args: ['--version'] };
+  writeFileSync(executionPath, JSON.stringify(execution), 'utf8');
 };
 try {
   for (const [stack, platform] of copilotCases) {
@@ -185,7 +189,7 @@ try {
 
       const lock = JSON.parse(readFileSync(join(target, 'standards/install-lock.json'), 'utf8'));
       const actual = new Set(walkExternal(target));
-      const expected = new Set([...Object.keys(lock.files), 'standards/project.json', 'standards/install-lock.json']);
+      const expected = new Set([...Object.keys(lock.files), 'standards/project.json', 'standards/execution.json', 'standards/install-lock.json']);
       for (const file of expected) if (!actual.has(file)) errors.push(`Installer ${manifestName}/${mode}: missing output ${file}`);
       for (const file of actual) if (!expected.has(file)) errors.push(`Installer ${manifestName}/${mode}: unexpected output ${file}`);
 
@@ -245,6 +249,28 @@ try {
   const removeI18n = spawnSync(process.execPath, ['scripts/standards.mjs', 'remove-module', '--target', lifecycleTarget, '--module', 'i18n', '--apply'], { cwd: root, encoding: 'utf8' });
   if (removeI18n.status !== 0 || existsSync(join(lifecycleTarget, 'standards/reference/i18n.md')) || existsSync(join(lifecycleTarget, 'standards/core/optional/i18n.md'))) errors.push('Bundled module removal failed');
 
+  const addFigma = spawnSync(process.execPath, ['scripts/standards.mjs', 'add-module', '--target', lifecycleTarget, '--module', 'figma', '--apply'], { cwd: root, encoding: 'utf8' });
+  if (addFigma.status !== 0 || !existsSync(join(lifecycleTarget, 'integrations/figma/rules.md')) || !existsSync(join(lifecycleTarget, 'workflows/design-to-code.md'))) errors.push('Figma capability module installation failed');
+  const addJira = spawnSync(process.execPath, ['scripts/standards.mjs', 'add-module', '--target', lifecycleTarget, '--module', 'jira', '--apply'], { cwd: root, encoding: 'utf8' });
+  if (addJira.status !== 0 || !existsSync(join(lifecycleTarget, 'integrations/jira/rules.md')) || !existsSync(join(lifecycleTarget, 'workflows/ticket-to-code.md'))) errors.push('Jira capability module installation failed');
+
+  const failedSyncTarget = join(generatedDir, 'failed-sync-state');
+  spawnSync(process.execPath, ['scripts/standards.mjs', 'install', '--target', failedSyncTarget, '--manifest', 'vue', '--mode', 'legacy', '--apply'], { cwd: root, encoding: 'utf8' });
+  const failedSyncShared = join(failedSyncTarget, 'standards/reference/typescript.md');
+  writeFileSync(failedSyncShared, `${readFileSync(failedSyncShared, 'utf8')}\nlocal edit\n`, 'utf8');
+  const failedSyncPolicy = readFileSync(join(failedSyncTarget, 'standards/project.json'), 'utf8');
+  const failedSyncLock = readFileSync(join(failedSyncTarget, 'standards/install-lock.json'), 'utf8');
+  const refusedSync = spawnSync(process.execPath, ['scripts/standards.mjs', 'sync', '--target', failedSyncTarget, '--apply'], { cwd: root, encoding: 'utf8' });
+  if (refusedSync.status === 0 || readFileSync(join(failedSyncTarget, 'standards/project.json'), 'utf8') !== failedSyncPolicy || readFileSync(join(failedSyncTarget, 'standards/install-lock.json'), 'utf8') !== failedSyncLock) errors.push('Refused sync changed policy or lock state');
+
+  const uninstallTarget = join(generatedDir, 'uninstall-safety');
+  spawnSync(process.execPath, ['scripts/standards.mjs', 'install', '--target', uninstallTarget, '--manifest', 'vue', '--mode', 'legacy', '--apply'], { cwd: root, encoding: 'utf8' });
+  writeFileSync(join(uninstallTarget, 'unrelated.txt'), 'keep', 'utf8');
+  const modifiedManaged = join(uninstallTarget, 'standards/reference/typescript.md');
+  writeFileSync(modifiedManaged, `${readFileSync(modifiedManaged, 'utf8')}\nkeep local\n`, 'utf8');
+  const uninstall = spawnSync(process.execPath, ['scripts/standards.mjs', 'uninstall', '--target', uninstallTarget, '--apply'], { cwd: root, encoding: 'utf8' });
+  if (uninstall.status !== 0 || !existsSync(join(uninstallTarget, 'unrelated.txt')) || !existsSync(modifiedManaged) || !existsSync(join(uninstallTarget, 'standards/project.json')) || !existsSync(join(uninstallTarget, 'standards/execution.json')) || existsSync(join(uninstallTarget, 'standards/core/guardrails.md'))) errors.push('Uninstall did not preserve local/project files or remove only unmodified managed files');
+
   // A UTF-8 BOM must not break the policy read. Windows PowerShell writes one
   // with `Set-Content -Encoding utf8`, and the resulting parse error names an
   // invisible character, which is close to undiagnosable.
@@ -258,10 +284,18 @@ try {
   const invalidPolicyPath = join(lifecycleTarget, 'standards/project.json');
   const invalidPolicy = JSON.parse(readFileSync(invalidPolicyPath, 'utf8'));
   invalidPolicy.limits.componentReviewLines = 0;
-  invalidPolicy.commands.lint = 42;
   writeFileSync(invalidPolicyPath, JSON.stringify(invalidPolicy), 'utf8');
   const invalidCheck = spawnSync(process.execPath, ['scripts/standards.mjs', 'check', '--target', lifecycleTarget], { cwd: root, encoding: 'utf8' });
   if (invalidCheck.status === 0) errors.push('Installer check accepts a schema-invalid project policy');
+  writeFileSync(invalidPolicyPath, bomOriginal, 'utf8');
+  const invalidExecutionPath = join(lifecycleTarget, 'standards/execution.json');
+  const validExecution = readFileSync(invalidExecutionPath, 'utf8');
+  const invalidExecution = JSON.parse(validExecution);
+  invalidExecution.commands.lint = { executable: process.execPath, args: [42] };
+  writeFileSync(invalidExecutionPath, JSON.stringify(invalidExecution), 'utf8');
+  const invalidExecutionCheck = spawnSync(process.execPath, ['scripts/standards.mjs', 'check', '--target', lifecycleTarget], { cwd: root, encoding: 'utf8' });
+  if (invalidExecutionCheck.status === 0) errors.push('Installer check accepts an unsafe structured execution command');
+  writeFileSync(invalidExecutionPath, validExecution, 'utf8');
 
   const existingTarget = join(generatedDir, 'existing-adapter');
   mkdirSync(join(existingTarget, '.claude'), { recursive: true });
@@ -326,6 +360,19 @@ try {
   const upgradedCheck = spawnSync(process.execPath, ['scripts/standards.mjs', 'check', '--target', staleCopilotTarget], { cwd: root, encoding: 'utf8' });
   if (upgradeSync.status !== 0 || upgradedCheck.status !== 0) errors.push('Copilot is stale after a standards-version upgrade sync');
 
+  const legacyExecutionTarget = join(generatedDir, 'legacy-execution-migration');
+  spawnSync(process.execPath, ['scripts/standards.mjs', 'install', '--target', legacyExecutionTarget, '--manifest', 'vue', '--mode', 'legacy', '--apply'], { cwd: root, encoding: 'utf8' });
+  rmSync(join(legacyExecutionTarget, 'standards/execution.json'));
+  const legacyExecutionPolicyPath = join(legacyExecutionTarget, 'standards/project.json');
+  const legacyExecutionPolicy = JSON.parse(readFileSync(legacyExecutionPolicyPath, 'utf8'));
+  delete legacyExecutionPolicy.integrations;
+  legacyExecutionPolicy.commands = { lint: 'npm run lint', typecheck: null, test: null, coverage: null, build: null, format: null };
+  writeFileSync(legacyExecutionPolicyPath, JSON.stringify(legacyExecutionPolicy), 'utf8');
+  const executionMigration = spawnSync(process.execPath, ['scripts/standards.mjs', 'sync', '--target', legacyExecutionTarget, '--apply'], { cwd: root, encoding: 'utf8' });
+  const migratedExecution = JSON.parse(readFileSync(join(legacyExecutionTarget, 'standards/execution.json'), 'utf8'));
+  const migratedPolicy = JSON.parse(readFileSync(legacyExecutionPolicyPath, 'utf8'));
+  if (executionMigration.status !== 0 || migratedExecution.commands.lint !== 'npm run lint' || 'commands' in migratedPolicy || !migratedPolicy.integrations) errors.push('Sync did not safely migrate legacy project commands into trusted execution configuration');
+
   const migrationTarget = join(generatedDir, 'adapter-cursor');
   const migrationLockPath = join(migrationTarget, 'standards/install-lock.json');
   const migrationLock = JSON.parse(readFileSync(migrationLockPath, 'utf8'));
@@ -345,23 +392,23 @@ try {
   const incompleteTarget = join(generatedDir, 'incomplete-greenfield');
   spawnSync(process.execPath, ['scripts/standards.mjs', 'install', '--target', incompleteTarget, '--manifest', 'vue', '--mode', 'greenfield', '--apply'], { cwd: root, encoding: 'utf8' });
   const incompleteCheck = spawnSync(process.execPath, ['scripts/standards.mjs', 'check', '--target', incompleteTarget], { cwd: root, encoding: 'utf8' });
-  if (incompleteCheck.status === 0 || !incompleteCheck.stderr.includes('greenfield commands.lint') || !incompleteCheck.stderr.includes('greenfield stack.styling')) errors.push('Greenfield check accepts incomplete commands or stack choices');
+  if (incompleteCheck.status === 0 || !incompleteCheck.stderr.includes('greenfield execution commands.lint') || !incompleteCheck.stderr.includes('greenfield stack.styling')) errors.push('Greenfield check accepts incomplete commands or stack choices');
 
   const incompleteLegacyTarget = join(generatedDir, 'incomplete-legacy-coverage');
   spawnSync(process.execPath, ['scripts/standards.mjs', 'install', '--target', incompleteLegacyTarget, '--manifest', 'vue', '--mode', 'legacy', '--apply'], { cwd: root, encoding: 'utf8' });
   const incompleteLegacyCheck = spawnSync(process.execPath, ['scripts/standards.mjs', 'check', '--target', incompleteLegacyTarget], { cwd: root, encoding: 'utf8' });
-  if (incompleteLegacyCheck.status === 0 || !incompleteLegacyCheck.stderr.includes('requires commands.coverage')) errors.push('Check accepts active coverage policy without a coverage command');
+  if (incompleteLegacyCheck.status === 0 || !incompleteLegacyCheck.stderr.includes('requires execution commands.coverage')) errors.push('Check accepts active coverage policy without a coverage command');
 
   const hookTarget = join(generatedDir, 'hook-failures');
   mkdirSync(join(hookTarget, 'standards'), { recursive: true });
-  writeFileSync(join(hookTarget, 'standards/project.json'), JSON.stringify({ commands: { lint: `${process.execPath} -e "process.exit(7)"`, typecheck: `${process.execPath} -e "process.exit(8)"` } }), 'utf8');
+  writeFileSync(join(hookTarget, 'standards/execution.json'), JSON.stringify({ commands: { lint: { executable: process.execPath, args: ['-e', 'process.exit(7)'] }, typecheck: { executable: process.execPath, args: ['-e', 'process.exit(8)'] } } }), 'utf8');
   const lintHook = spawnSync(process.execPath, [join(root, 'adapters/claude/hooks/check-changed.mjs')], { cwd: hookTarget, encoding: 'utf8' });
   if (lintHook.status === 0) errors.push('Claude post-edit lint hook does not propagate failure');
   const typecheckHook = spawnSync(process.execPath, [join(root, 'adapters/claude/hooks/typecheck.mjs')], { cwd: hookTarget, encoding: 'utf8' });
   if (typecheckHook.status === 0) errors.push('Claude typecheck hook does not propagate failure');
-  writeFileSync(join(hookTarget, 'standards/project.json'), '{ malformed', 'utf8');
+  writeFileSync(join(hookTarget, 'standards/execution.json'), '{ malformed', 'utf8');
   const malformedTypecheck = spawnSync(process.execPath, [join(root, 'adapters/claude/hooks/typecheck.mjs')], { cwd: hookTarget, encoding: 'utf8' });
-  if (malformedTypecheck.status === 0) errors.push('Claude typecheck hook accepts malformed project policy');
+  if (malformedTypecheck.status === 0) errors.push('Claude typecheck hook accepts malformed execution policy');
 
   const integrityTarget = join(generatedDir, 'adapter-codex');
   const sharedPath = join(integrityTarget, 'standards/reference/typescript.md');
@@ -374,11 +421,15 @@ try {
 
 const stagedPolicy = spawnSync(process.execPath, ['enforcement/hooks/guard-staged.mjs', 'standards/project.json'], { cwd: root, encoding: 'utf8' });
 if (stagedPolicy.status !== 0) errors.push('guard-staged blocks editable standards/project.json');
+const stagedExecution = spawnSync(process.execPath, ['enforcement/hooks/guard-staged.mjs', 'standards/execution.json'], { cwd: root, encoding: 'utf8' });
+if (stagedExecution.status === 0) errors.push('guard-staged allows trusted standards/execution.json edits');
 const stagedShared = spawnSync(process.execPath, ['enforcement/hooks/guard-staged.mjs', 'standards/core/rules.md'], { cwd: root, encoding: 'utf8' });
 if (stagedShared.status === 0) errors.push('guard-staged allows shared standards edits');
 
 const claudePolicy = spawnSync(process.execPath, ['adapters/claude/hooks/guard-paths.mjs'], { cwd: root, encoding: 'utf8', input: JSON.stringify({ tool_input: { file_path: 'standards/project.json' } }) });
 if (claudePolicy.status !== 0) errors.push('Claude guard blocks editable standards/project.json');
+const claudeExecution = spawnSync(process.execPath, ['adapters/claude/hooks/guard-paths.mjs'], { cwd: root, encoding: 'utf8', input: JSON.stringify({ tool_input: { file_path: 'standards/execution.json' } }) });
+if (claudeExecution.status === 0) errors.push('Claude guard allows trusted standards/execution.json edits');
 const claudeShared = spawnSync(process.execPath, ['adapters/claude/hooks/guard-paths.mjs'], { cwd: root, encoding: 'utf8', input: JSON.stringify({ tool_input: { file_path: 'standards/core/rules.md' } }) });
 if (claudeShared.status === 0) errors.push('Claude guard allows shared standards edits');
 

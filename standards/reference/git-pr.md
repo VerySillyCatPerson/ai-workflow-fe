@@ -30,7 +30,7 @@ Run before opening a PR. Stop at the first failure.
 1. Lint — no errors
 2. Typecheck — no errors
 3. Tests with coverage — meets the explicit mode and thresholds in
-   `standards/project.json`; if unavailable or report-only, say so
+   trusted `standards/execution.json`; if unavailable or report-only, say so
 4. Production build — succeeds
 5. Dependency audit — review high/critical findings
 

@@ -26,12 +26,16 @@ const PROTECTED = [
   },
   {
     test: /(^|[\\/])standards[\\/]/,
-    allow: /(^|[\\/])standards[\\/]project\.json$/,
+    allow: /(^|[\\/])standards[\\/](?:project|execution)\.json$/,
     reason:
       'Shared standards are read-only in a consuming project. A local edit is ' +
       'destroyed by the next /standards-sync and is invisible to other teams. ' +
       'Record the deviation in standards/project.json ' +
       '(see adoption/governance.md), or raise a change against the standards repo.',
+  },
+  {
+    test: /(^|[\\/])standards[\\/]execution\.json$/,
+    reason: 'Trusted executable configuration. Changes require explicit human approval; do not edit it as project policy.',
   },
   {
     test: /\.(pem|key|p12|keystore|jks)$/i,

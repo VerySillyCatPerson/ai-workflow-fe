@@ -1,7 +1,7 @@
 {
   "$schema": "./project.schema.json",
   "schemaVersion": 1,
-  "standardsVersion": "1.0.0",
+  "standardsVersion": "1.1.0",
   "mode": "greenfield",
   "framework": "unset",
   "platform": "unset",
@@ -26,6 +26,6 @@
     "coverage": { "mode": "whole-repository", "lines": 90, "branches": 85, "functions": 90, "statements": 90 }
   },
   "stack": { "styling": "unset", "stateManagement": "unset", "serverState": "unset", "unitTestRunner": null, "e2eRunner": "unset" },
-  "commands": { "format": null, "lint": null, "lintChanged": null, "typecheck": null, "test": null, "coverage": null, "build": null },
+  "integrations": {},
   "deviations": []
 }
