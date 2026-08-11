@@ -47,4 +47,4 @@ a fenced global rule. Never disable view encapsulation to make a selector reach.
 Scaffolds and paths: `reference/scaffold-angular.md`.
 
 Testing follows `project.json#stack.unitTestRunner` and its installed matching
-reference. Execute only validation commands declared under `project.json#commands`.
+reference. Execute only validation commands declared in trusted `standards/execution.json`.

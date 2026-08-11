@@ -14,11 +14,11 @@ const option = (name) => { const i = args.indexOf(`--${name}`); return i >= 0 ? 
 const target = option('target') && resolve(option('target'));
 const apply = args.includes('--apply');
 const fail = (message) => { console.error(message); process.exit(1); };
-const usage = 'Usage: node scripts/standards.mjs <install|check|sync|add-module|remove-module> --target <project> [--manifest vue] [--mode greenfield|legacy] [--adapter claude,codex,cursor,copilot] [--module forms] [--remove-obsolete] [--apply]';
-if (!['check', 'install', 'sync', 'add-module', 'remove-module'].includes(action) || !target) fail(usage);
+const usage = 'Usage: node scripts/standards.mjs <install|check|sync|uninstall|add-module|remove-module> --target <project> [--manifest vue] [--mode greenfield|legacy] [--adapter claude,codex,cursor,copilot] [--module forms|figma|jira] [--remove-obsolete] [--apply]';
+if (!['check', 'install', 'sync', 'uninstall', 'add-module', 'remove-module'].includes(action) || !target) fail(usage);
 
 const routingPath = 'standards/core/rules.md';
-const required = ['standards/standards.json', 'standards/project.json', 'standards/project.schema.json', 'standards/core/guardrails.md', routingPath];
+const required = ['standards/standards.json', 'standards/project.json', 'standards/project.schema.json', 'standards/execution.json', 'standards/execution.schema.json', 'standards/core/guardrails.md', routingPath];
 const hashFile = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
 // Strip a UTF-8 BOM before parsing. Windows PowerShell writes one with
 // `Set-Content -Encoding utf8` and `>`, and JSON.parse then fails naming a
@@ -32,14 +32,23 @@ function policyErrors(targetRoot) {
   const policy = readJson(join(targetRoot, 'standards/project.json'), 'standards/project.json');
   const schema = readJson(join(targetRoot, 'standards/project.schema.json'), 'standards/project.schema.json');
   const marker = readJson(join(targetRoot, 'standards/standards.json'), 'standards/standards.json');
+  const execution = readJson(join(targetRoot, 'standards/execution.json'), 'standards/execution.json');
+  const executionSchema = readJson(join(targetRoot, 'standards/execution.schema.json'), 'standards/execution.schema.json');
   validateValue(policy, schema, 'standards/project.json', errors);
+  validateValue(execution, executionSchema, 'standards/execution.json', errors);
+  for (const [name, command] of Object.entries(execution.commands ?? {})) {
+    const structured = command && typeof command === 'object' && !Array.isArray(command);
+    if (command !== null && typeof command !== 'string' && !structured) errors.push(`standards/execution.json.commands.${name}: expected string, structured command, or null`);
+    if (typeof command === 'string' && !command.trim()) errors.push(`standards/execution.json.commands.${name}: command must not be empty`);
+    if (structured && (typeof command.executable !== 'string' || !command.executable || !Array.isArray(command.args) || command.args.some((arg) => typeof arg !== 'string') || Object.keys(command).some((key) => !['executable', 'args'].includes(key)))) errors.push(`standards/execution.json.commands.${name}: structured command requires only executable and string args`);
+  }
   if (policy.standardsVersion !== marker.version) errors.push(`standardsVersion ${policy.standardsVersion} does not match ${marker.version}`);
   if (policy.framework === 'react-native' && policy.platform !== 'native') errors.push('react-native requires native');
   if (!['react-native', 'unset'].includes(policy.framework) && policy.platform !== 'web') errors.push('web framework requires web');
   if (policy.framework === 'unset' || policy.platform === 'unset') errors.push('framework/platform is unset');
   if (!policy.stack?.unitTestRunner || policy.stack.unitTestRunner === 'project-existing') errors.push('stack.unitTestRunner must name the real runner');
-  if (policy.mode === 'greenfield') for (const command of ['lint', 'typecheck', 'test', 'build']) if (!policy.commands?.[command]) errors.push(`greenfield commands.${command} must be configured`);
-  if (!['disabled', 'report-only'].includes(policy.testing?.coverage?.mode) && !policy.commands?.coverage) errors.push(`coverage mode ${policy.testing?.coverage?.mode} requires commands.coverage`);
+  if (policy.mode === 'greenfield') for (const command of ['lint', 'typecheck', 'test', 'build']) if (!execution.commands?.[command]) errors.push(`greenfield execution commands.${command} must be configured`);
+  if (!['disabled', 'report-only'].includes(policy.testing?.coverage?.mode) && !execution.commands?.coverage) errors.push(`coverage mode ${policy.testing?.coverage?.mode} requires execution commands.coverage`);
   if (policy.mode === 'greenfield') for (const choice of ['styling', 'stateManagement', 'serverState', 'e2eRunner']) if (!policy.stack?.[choice] || policy.stack[choice] === 'unset') errors.push(`greenfield stack.${choice} must be configured; use "none" when deliberately unused`);
   return errors;
 }
@@ -88,7 +97,7 @@ function danglingRoutes(targetRoot) {
 }
 
 function baseCopies(manifest, mode, runner) {
-  const copies = new Map([['standards.json', 'standards/standards.json'], ['templates/project.schema.json', 'standards/project.schema.json'], [`templates/project.${mode}.json`, 'standards/project.json']]);
+  const copies = new Map([['standards.json', 'standards/standards.json'], ['templates/project.schema.json', 'standards/project.schema.json'], ['templates/execution.schema.json', 'standards/execution.schema.json'], ['templates/execution.json', 'standards/execution.json'], [`templates/project.${mode}.json`, 'standards/project.json']]);
   for (const path of [...manifest.resident.filter((x) => x !== 'standards.json'), ...manifest.reference.core, ...manifest.commands.core, ...manifest.skills]) copies.set(path, path);
   const runnerReference = manifest.runnerReferences[runner];
   if (runnerReference) copies.set(runnerReference, runnerReference);
@@ -185,6 +194,8 @@ function moduleEntries(manifest) {
     entries.set('perf', [...entries.get('perf'), performance]);
   }
   if (entries.has('api-types')) entries.set('api-types', [...entries.get('api-types'), 'standards/reference/api-contracts.md']);
+  entries.set('figma', ['integrations/figma/rules.md', 'integrations/figma/workflows.md', 'workflows/design-to-code.md', 'workflows/ticket-design-to-code.md']);
+  entries.set('jira', ['integrations/jira/rules.md', 'integrations/jira/workflows.md', 'workflows/ticket-to-code.md', 'workflows/ticket-design-to-code.md']);
   return entries;
 }
 
@@ -279,11 +290,32 @@ if (action === 'add-module' || action === 'remove-module') {
   process.exit(0);
 }
 
+if (action === 'uninstall') {
+  const { path: lockPath, value: lock } = readLock();
+  const removable = [];
+  const unsafe = [];
+  for (const [path, record] of Object.entries(lock.files ?? {})) {
+    const installed = join(target, path);
+    if (!existsSync(installed)) continue;
+    if (record.editable || record.merge || record.preserved || hashFile(installed) !== (record.installedHash ?? record.hash)) unsafe.push(path);
+    else removable.push(path);
+  }
+  console.log(`${apply ? 'Uninstalling' : 'Would uninstall'} ${removable.length} managed files.`);
+  if (unsafe.length) console.log(`Preserving locally controlled or modified files:\n${unsafe.map((x) => `  ${x}`).join('\n')}`);
+  if (!apply) { console.log('Preview only. Re-run with --apply after review.'); process.exit(0); }
+  for (const path of removable) rmSync(join(target, path));
+  rmSync(lockPath);
+  console.log('Uninstall complete; project policy, trusted execution configuration, modified files, and unrelated files were preserved.');
+  process.exit(0);
+}
+
 if (action === 'sync') {
   const { path: lockPath, value: lock } = readLock();
   const manifest = readJson(join(source, 'manifests', `${lock.manifest}.json`));
   const desired = baseCopies(manifest, lock.mode, lock.unitTestRunner);
   desired.delete('templates/project.' + lock.mode + '.json');
+  desired.delete('templates/execution.json');
+  const needsExecutionMigration = !existsSync(join(target, 'standards/execution.json'));
   for (const moduleName of lock.modules ?? []) for (const path of moduleEntries(manifest).get(moduleName) ?? []) desired.set(path, path);
   for (const [from, to] of adapterCopies(lock.adapters ?? [], manifest)) desired.set(from, to);
   if ((lock.adapters ?? []).includes('copilot')) desired.set('GENERATED:copilot', '.github/copilot-instructions.md');
@@ -314,10 +346,18 @@ if (action === 'sync') {
     if (unsafe.length) fail(`Refusing to remove missing or locally modified obsolete files:\n${unsafe.map((x) => `- ${x}`).join('\n')}`);
   }
   console.log(`${apply ? 'Syncing' : 'Would sync'} ${updates.length} updates and ${additions.length} additions.`);
+  if (needsExecutionMigration) console.log(`${apply ? 'Migrating' : 'Would migrate'} executable commands from project.json to trusted standards/execution.json.`);
   if (obsolete.length) console.log(`${args.includes('--remove-obsolete') ? (apply ? 'Removing' : 'Would remove') : 'Obsolete files (use --remove-obsolete to remove safely)'}:\n${obsolete.map((x) => `  ${x}`).join('\n')}`);
   if (!apply) { console.log('Preview only. Re-run with --apply after review.'); process.exit(0); }
   const targetVersion = readJson(join(source, 'standards.json')).version;
   const policyPath = join(target, 'standards/project.json'), policy = readJson(policyPath);
+  if (needsExecutionMigration) {
+    const execution = readJson(join(source, 'templates/execution.json'));
+    if (policy.commands) execution.commands = { ...execution.commands, ...policy.commands };
+    writeJson(join(target, 'standards/execution.json'), execution);
+  }
+  delete policy.commands;
+  policy.integrations ??= {};
   policy.standardsVersion = targetVersion;
   writeJson(policyPath, policy);
   for (const item of [...updates, ...additions]) {
@@ -393,7 +433,7 @@ if (adapters.includes('copilot')) {
   writtenCopies.set('GENERATED:copilot', '.github/copilot-instructions.md');
 }
 const lock = { schemaVersion: 2, standardsVersion: installedPolicy.standardsVersion, manifest: stack, mode, unitTestRunner, adapters, modules: [], partialAdapters, files: {} };
-for (const [from, to] of writtenCopies) if (to !== 'standards/project.json') lock.files[to] = { source: from, sourceHash: from.startsWith('GENERATED:') ? hashFile(join(target, to)) : hashFile(join(source, from)), installedHash: hashFile(join(target, to)), ...(editableAdapterPaths.has(to) ? { editable: true } : {}), ...(preservedAdapterPaths.has(to) ? { preserved: true } : {}), ...(to === '.claude/settings.json' ? { merge: 'claude-settings' } : {}) };
+for (const [from, to] of writtenCopies) if (!['standards/project.json', 'standards/execution.json'].includes(to)) lock.files[to] = { source: from, sourceHash: from.startsWith('GENERATED:') ? hashFile(join(target, to)) : hashFile(join(source, from)), installedHash: hashFile(join(target, to)), ...(editableAdapterPaths.has(to) ? { editable: true } : {}), ...(preservedAdapterPaths.has(to) ? { preserved: true } : {}), ...(to === '.claude/settings.json' ? { merge: 'claude-settings' } : {}) };
 writeJson(join(target, 'standards/install-lock.json'), lock);
 if (partialAdapters.length) console.log(`Installed with partial adapter integration:\n${partialAdapters.map((x) => `- ${x}`).join('\n')}`);
-else console.log('Installed. Fill project-specific stack choices and commands, then run check.');
+else console.log('Installed. Fill project policy and trusted standards/execution.json commands, then run check.');

@@ -29,7 +29,7 @@
 
   "postInstall": [
     "Run the installation check; routing placeholders and uninstalled rows are handled by the installer.",
-    "Fill stack choices and commands in standards/project.json."
+    "Fill stack choices in standards/project.json and trusted commands in standards/execution.json."
   ],
 
   "resident": [

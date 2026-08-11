@@ -48,7 +48,8 @@ reason, an owner, and a review date.
 
 - **Stack:** {nextjs | react | vue | angular | react-native}
 - **Project mode:** {greenfield | legacy}
-- **Project policy:** `standards/project.json` (thresholds, strictness, stack choices, commands)
+- **Project policy:** `standards/project.json` (thresholds, strictness, stack choices, integrations)
+- **Trusted execution:** `standards/execution.json` (human-approved commands; do not edit without explicit approval)
 - **Component library:** {package, docs URL}
 - **i18n:** {library, locales path, supported locales — or "single locale"}
 - **Test utils:** `@/utils/test-utils`

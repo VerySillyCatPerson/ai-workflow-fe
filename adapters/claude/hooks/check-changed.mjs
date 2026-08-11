@@ -3,16 +3,16 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 
-const policyPath = 'standards/project.json';
+const policyPath = 'standards/execution.json';
 if (!existsSync(policyPath)) process.exit(0);
 
 let commands = null;
 // .replace strips a UTF-8 BOM, which PowerShell-written policy files carry.
 try { commands = JSON.parse(readFileSync(policyPath, 'utf8').replace(/^﻿/, ''))?.commands ?? null; }
-catch { console.error('Cannot read standards/project.json; lint was not run.'); process.exit(1); }
+catch { console.error('Cannot read trusted standards/execution.json; lint was not run.'); process.exit(1); }
 
 if (!commands?.lint) {
-  console.error('No lint command is configured in standards/project.json; lint was not run.');
+  console.error('No lint command is configured in standards/execution.json; lint was not run.');
   process.exit(0);
 }
 
@@ -24,7 +24,10 @@ for (const result of [git(['diff', '--name-only', '--diff-filter=ACMR', 'HEAD'])
 const useChanged = Boolean(commands.lintChanged) && changed.size > 0;
 if (commands.lintChanged && !changed.size) process.exit(0);
 const command = useChanged ? commands.lintChanged : commands.lint;
-const result = spawnSync(command, { encoding: 'utf8', shell: true, env: { ...process.env, AI_WORKFLOW_CHANGED_FILES: JSON.stringify([...changed]) } });
+const options = { encoding: 'utf8', windowsHide: true, env: { ...process.env, AI_WORKFLOW_CHANGED_FILES: JSON.stringify([...changed]) } };
+const result = typeof command === 'object'
+  ? spawnSync(command.executable, command.args, options)
+  : spawnSync(command, { ...options, shell: true });
 if (result.status !== 0) {
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
   console.error(`${useChanged ? 'Changed-file lint' : 'Lint'} failed:\n${output || '(no output)'}`);

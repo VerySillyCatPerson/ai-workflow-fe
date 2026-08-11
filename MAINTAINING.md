@@ -57,7 +57,9 @@ doubt, principle in `core/`, mechanism in `framework/` — the pattern
 
 ## Hard rules for editing
 
-1. **Configurable thresholds live in `standards/project.json`.** Source presets
+1. **Configurable thresholds live in `standards/project.json`.** Executable
+   validation commands live in trusted `standards/execution.json`, which agents
+   must not modify without explicit human approval. Source presets
    provide recommended values; shared standards refer to policy keys or named
    concepts, never one preset's number as a universal rule.
 2. **`standards/core/` may never name a framework or platform.** If it mentions

@@ -24,12 +24,16 @@ const PROTECTED = [
   },
   {
     test: /(^|[/\\])standards[/\\]/,
-    allow: /(^|[/\\])standards[/\\]project\.json$/,
+    allow: /(^|[/\\])standards[/\\](?:project|execution)\.json$/,
     reason:
       'Shared standards are read-only in a consuming project. A local edit is lost on ' +
       'the next sync and invisible to other teams. Record the deviation under Project ' +
       'specifics in your agent instruction file (adoption/governance.md), or raise a ' +
       'change against the standards repo.',
+  },
+  {
+    test: /(^|[/\\])standards[/\\]execution\.json$/,
+    reason: 'Trusted executable configuration. Review and stage it only with explicit human approval.',
   },
 ];
 

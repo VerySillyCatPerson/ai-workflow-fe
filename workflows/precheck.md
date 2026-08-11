@@ -16,7 +16,8 @@ Establish what the pipeline will reject **before** writing code.
 - Formatter config
 - Any static-analysis config (SonarCloud, etc.)
 - CI workflow — the gates that run on the branch may exceed the local ones
-- `standards/project.json` — intended policy, stack choices, and declared commands
+- `standards/project.json` — intended policy and stack choices
+- `standards/execution.json` — trusted locally executable validation commands
 
 ## Step 2 — Report
 
@@ -32,7 +33,7 @@ turned **off**, since those signal deliberate project decisions.
 stricter bar than the local config.
 
 **Commands** — compare real format, lint, typecheck, test, coverage, and build
-commands with `standards/project.json#commands`; update stale policy explicitly.
+commands with `standards/execution.json`; update stale executable configuration only with explicit human approval.
 
 ## Step 3 — Watch out for
 

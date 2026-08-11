@@ -1,7 +1,7 @@
 {
   "$schema": "./project.schema.json",
   "schemaVersion": 1,
-  "standardsVersion": "1.0.0",
+  "standardsVersion": "1.1.0",
   "mode": "legacy",
   "framework": "unset",
   "platform": "unset",
@@ -26,6 +26,6 @@
     "coverage": { "mode": "changed-files", "lines": 80, "branches": 75, "functions": 80, "statements": 80 }
   },
   "stack": { "styling": null, "stateManagement": null, "serverState": null, "unitTestRunner": null, "e2eRunner": null },
-  "commands": { "format": null, "lint": null, "lintChanged": null, "typecheck": null, "test": null, "coverage": null, "build": null },
+  "integrations": {},
   "deviations": []
 }

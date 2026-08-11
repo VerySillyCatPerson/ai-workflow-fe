@@ -46,5 +46,5 @@ Never an unscoped `<style>` in a component.
 Scaffolds and paths: `reference/scaffold-vue.md`.
 
 Testing follows `project.json#stack.unitTestRunner` and its installed matching
-reference. Execute only validation commands declared under `project.json#commands`.
+reference. Execute only validation commands declared in trusted `standards/execution.json`.
 Server state follows `project.json#stack.serverState`.

@@ -40,6 +40,6 @@ for a new project with no choice, not a Next.js requirement.
 Scaffolds and paths: `reference/scaffold-nextjs.md`.
 
 Testing follows `project.json#stack.unitTestRunner` and its installed matching
-reference. Execute only validation commands declared under `project.json#commands`.
+reference. Execute only validation commands declared in trusted `standards/execution.json`.
 Shared state follows `project.json#stack.stateManagement`; do not introduce a
 library merely because a framework profile recommends one.

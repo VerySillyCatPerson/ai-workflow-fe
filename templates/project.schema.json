@@ -4,7 +4,7 @@
   "title": "Frontend standards project policy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "standardsVersion", "mode", "framework", "platform", "limits", "typescript", "testing", "stack", "commands", "deviations"],
+  "required": ["schemaVersion", "standardsVersion", "mode", "framework", "platform", "limits", "typescript", "testing", "stack", "integrations", "deviations"],
   "properties": {
     "$schema": { "type": "string" },
     "schemaVersion": { "const": 1 },
@@ -70,18 +70,20 @@
         "e2eRunner": { "type": ["string", "null"] }
       }
     },
-    "commands": {
+    "integrations": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["format", "lint", "typecheck", "test", "coverage", "build"],
+      "additionalProperties": true,
       "properties": {
-        "format": { "type": ["string", "null"] },
-        "lint": { "type": ["string", "null"] },
-        "lintChanged": { "type": ["string", "null"] },
-        "typecheck": { "type": ["string", "null"] },
-        "test": { "type": ["string", "null"] },
-        "coverage": { "type": ["string", "null"] },
-        "build": { "type": ["string", "null"] }
+        "figma": {
+          "type": "object", "additionalProperties": false,
+          "required": ["enabled", "mode", "componentMapping"],
+          "properties": { "enabled": { "type": "boolean" }, "mode": { "enum": ["read"] }, "componentMapping": { "type": "boolean" } }
+        },
+        "jira": {
+          "type": "object", "additionalProperties": false,
+          "required": ["enabled", "projectKeys", "write"],
+          "properties": { "enabled": { "type": "boolean" }, "projectKeys": { "type": "array", "items": { "type": "string", "minLength": 1 } }, "write": { "enum": ["never", "confirm"] } }
+        }
       }
     },
     "deviations": {

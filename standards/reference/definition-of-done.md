@@ -8,7 +8,8 @@ completion.
 
 ## Scope depends on project mode
 
-Read `standards/project.json` for mode, thresholds, commands, and deviations.
+Read `standards/project.json` for mode, thresholds, and deviations. Read validation
+commands from trusted `standards/execution.json`.
 
 | | `greenfield` | `legacy` |
 | --- | --- | --- |

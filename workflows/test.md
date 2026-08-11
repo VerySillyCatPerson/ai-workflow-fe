@@ -7,7 +7,8 @@ argument-hint: [path/to/file]
 
 ## Step 1 — Read the loaded testing standard
 
-Read `standards/project.json#stack.unitTestRunner`, then the installed testing
+Read `standards/project.json#stack.unitTestRunner` and validation commands from
+trusted `standards/execution.json`, then the installed testing
 reference matching that value. If the value is `null`, inspect existing test
 configuration and update project policy before choosing runner-specific APIs.
 It defines the render wrapper, query API, async handling, and accessibility

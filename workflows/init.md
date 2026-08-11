@@ -30,7 +30,7 @@ From `manifests/{stack}.json`, the `core` sets only:
   Ask which tool they use rather than assuming; installing two is fine, since
   both point at the same `standards/`. Then fill in **Project specifics**
 - **`enforcement/`** → `lefthook.yml` + `enforcement/hooks/`, **committed**, then
-  adapt its commands to `standards/project.json` before enabling it. It is an
+  adapt its commands to trusted `standards/execution.json` before enabling it. It is an
   optional local check, not a universal CI backstop. Never invoke `npx`.
 - **Tool hooks**, if the user's tool supports them — the adapter's `hooks/`
   directory into wherever that tool expects them (`adapters/README.md`). These
@@ -84,7 +84,7 @@ Ask which providers the project will use rather than guessing.
 - Lint config with the project's rule set, `--max-warnings 0`
 - Coverage threshold at the Step 3 floor
 - Record only the project's actual format, lint, typecheck, test, coverage, and
-  build commands in `standards/project.json#commands`; do not invent script names
+  build commands in trusted `standards/execution.json`; do not invent script names
 - CI running all five, plus `api:check` if there is an OpenAPI spec
 
 Greenfield is the only moment these are free to add. **Every gate is more

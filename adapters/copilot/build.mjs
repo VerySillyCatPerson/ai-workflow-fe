@@ -43,7 +43,8 @@ export function generateCopilot({ stack, platform, root = 'standards', out = '.g
 ## Effective project policy
 
 This resolved policy is authoritative for thresholds, strictness, stack choices,
-commands, and deviations. It is inlined because this adapter cannot read
+integrations, and deviations. Executable commands remain separately protected
+in standards/execution.json and are not inlined. The policy is inlined because this adapter cannot read
 standards/project.json on demand.
 
 \`\`\`json
