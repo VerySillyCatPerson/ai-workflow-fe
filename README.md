@@ -1,17 +1,15 @@
 ﻿# ai-workflow-fe
 
-This is not a prompt collection. It is a versioned policy and context layer for
-coding agents: portable engineering standards, selective context loading,
-guardrails, and tool-specific adapters that can be adopted safely in existing
-projects without replacing their architecture.
+`ai-workflow-fe` bootstraps engineering policy and workflows for AI-assisted
+product teams. It installs portable standards, selective context routing,
+guardrails, repository navigation, and tool-specific adapters without replacing
+the project's architecture.
 
-A set of coding standards your AI assistant actually reads and follows — across
-Next.js, React, Vue, Angular, and React Native, and across Claude Code, Codex,
-Cursor, and Copilot.
+The adapters point Claude Code, Codex, Cursor, Copilot, Qwen Code, and Kimi Code
+at shared standards for Next.js, React, Vue, Angular, and React Native.
 
-You install it into a project once. From then on, when you ask your assistant to
-build a component, it already knows your conventions, your file layout, your test
-setup, and the things it must never do without asking you first.
+After installation, supported agents can consult the project's conventions,
+layout, test setup, and guardrails without repeating them in every prompt.
 
 ## Why this exists
 
@@ -30,8 +28,9 @@ the platform forces it: React Native has no CSS and no DOM, so styling and
 accessibility rules genuinely cannot match the web. A smaller set again differs
 because each framework has its own idiom worth respecting.
 
-No rule is written twice. When one changes, it changes in one place and every
-project picks it up on the next sync.
+Shared policy has one canonical source. Tool wiring and mechanical enforcement
+may repeat a constraint in executable form, but engineering policy changes in
+one place and each project can pick it up on its next sync.
 
 ## What it looks like in practice
 
@@ -42,11 +41,11 @@ approach that may not be yours, possibly reaches for `any`, might not write a
 test, and may well commit the result. Or worse - you have to do everything manually 
 and nobody got time for that.
 
-**With this**, it reads your project's standards first. On a Vue project it knows
-to write `<script setup>` with typed props, that data logic belongs in a
-composable rather than the component, exactly which folder the file goes in, and
-which test runner you use. It writes the test with your wrapper. And it does not
-commit — because the guardrails say to show you the diff and wait.
+**With this**, it can consult your project's standards first. On a Vue project
+those standards direct it toward `<script setup>` with typed props, composables
+for data logic, the configured repository layout, and the selected test runner.
+They also direct it to write the relevant test and show the diff without
+committing.
 
 You did not repeat any of that in your prompt. It was already installed.
 
@@ -54,10 +53,9 @@ You did not repeat any of that in your prompt. It was already installed.
 
 This is worth being straight about, because it is not free.
 
-**The fixed cost.** A typical Vue project keeps about **1,950 words (~3,200
-tokens)** in context every session — the guardrails, the core rules, your
-platform, your framework, and the entry file. You pay that whether the task is
-large or trivial.
+**The fixed cost.** A typical project keeps about **2,300 words (roughly 3,800
+tokens)** in resident instructions — the guardrails, core rules, platform,
+framework, and entry file. Exact token counts depend on the agent tokenizer.
 
 **What stays out.** Roughly 17,000 tokens of reference material and workflows sit
 in the project unread. The eight reference files load only when the routing table
@@ -75,7 +73,7 @@ rule set does not make every session more expensive.
 - **Shorter workflows.** "Follow `workflows/review.md`" replaces a paragraph
   describing what a review should cover.
 
-**Where it does not.** For a one-line fix in a repo you know well, 3,200 tokens
+**Where it does not.** For a one-line fix in a repo you know well, roughly 3,800 tokens
 of standards is overhead you did not need. The economics only work when the
 assistant would otherwise have guessed wrong — which is most of the time on an
 unfamiliar codebase, and rarely on a two-minute change.
@@ -83,7 +81,21 @@ unfamiliar codebase, and rarely on a two-minute change.
 The honest summary is that this trades a predictable fixed cost for a reduction
 in a variable one. It is a good trade on real work and a bad one on trivia.
 
-## Quick start
+## Quick start: guided setup
+
+The wizard inspects an existing repository where possible, offers detected
+defaults, and produces the same configuration as the manual installer. It shows
+one consolidated file-change plan, the selected package manager, and trusted
+executable commands before asking to write anything:
+
+```bash
+node scripts/standards.mjs init --target ../my-app
+```
+
+Use `--dry-run` to stop after the preview. CI and scripted environments can use
+`--non-interactive` with explicit flags and `--yes`.
+
+## Advanced/manual setup
 
 Run this from this repo (or your fork), pointing at your app:
 
@@ -97,10 +109,11 @@ node scripts/standards.mjs install --target ../my-app --manifest vue --mode gree
 
 `--manifest` is your stack: `nextjs`, `react`, `vue`, `angular`, `react-native`.
 `--mode` is `greenfield` for a new repo or `legacy` for an existing codebase.
-`--adapter` is `claude`, `codex`, `cursor`, or `copilot`; comma-separate multiple.
+`--adapter` is `claude`, `codex`, `cursor`, `copilot`, `qwen`, or `kimi`;
+comma-separate multiple.
 
-You get roughly 30 files — a few more with the Claude adapter, which also writes
-commands and skills — and nothing else is touched:
+You get roughly 30 managed files, with a few more for Claude commands and
+skills. The preview lists the files before installation:
 
 ```
 standards/
@@ -171,6 +184,8 @@ Pass `--adapter` during installation and the entry file is written for you:
 | `codex` | Codex, Amp, Jules, Zed | `AGENTS.md` |
 | `cursor` | Cursor | `.cursor/rules/standards.mdc` |
 | `copilot` | Copilot | `.github/copilot-instructions.md`, generated |
+| `qwen` | Qwen Code | `QWEN.md` |
+| `kimi` | Kimi Code | `.kimi/AGENTS.md` |
 
 Comma-separate to install several: `--adapter claude,cursor`. Then fill in the
 "Project specifics" section of the entry file.
@@ -181,8 +196,59 @@ Windsurf and Aider have no dedicated adapter yet. Copy the `codex` entry to
 **Running the workflows.** The Claude adapter installs commands and skills in
 their native locations. Everywhere else, say *"follow `workflows/review.md`"*.
 
-**Using two tools on one project is fine.** They point at the same files, so they
-cannot contradict each other.
+**Using two tools on one project is supported.** They consume the same shared
+policy, reducing duplicated configuration and policy drift.
+
+## Code Map
+
+The generated Code Map gives agents a deterministic navigation index without
+loading the full index into context:
+
+```bash
+node scripts/standards.mjs map build --target ../my-app
+node scripts/standards.mjs map find "user status" --target ../my-app
+node scripts/standards.mjs map check --target ../my-app
+```
+
+It records source files, imports, exports, symbol kinds, and basic usage links in
+`.ai/code-map.json`. It excludes environment files, credential-like files,
+dependencies, build output, vendor code, and generated directories. The map is
+only a navigation aid: source files remain authoritative, and `map check`
+reports changed, deleted, or renamed source as stale.
+
+## Validation status and feedback
+
+This release has local automated coverage on Windows for the installer, sync,
+uninstall safety, policy validation, wizard flows, Code Map, and adapter
+lifecycle. The suite runs 5 framework manifests in greenfield and legacy modes.
+The GitHub Actions workflow also targets Ubuntu and Windows, but those hosted
+runs still need to pass after the branch is pushed.
+
+The project has not yet been exercised across a broad sample of real
+repositories or every supported agent environment. Qwen and Kimi support is
+based on their documented project-instruction mechanisms and local lifecycle
+fixtures, not production use across multiple teams. Feedback is welcome,
+especially when it includes the framework, agent, command used, expected result,
+actual result, and a small reproduction where possible.
+
+Known follow-up work:
+
+- Replace or supplement Code Map's deterministic source patterns with a proper
+  parser where regex extraction proves unreliable.
+- Test hosted Linux and Windows CI and record any platform-specific filesystem
+  failures.
+- Run pilot installs with 5–10 external developers and collect installation
+  friction, confusing choices, disabled rules, routing failures, and adapter
+  demand.
+- Add small benchmarking fixtures for tool calls, file reads, task time,
+  validation failures, and correctness. Do not claim token savings before that
+  evidence exists.
+
+Longer-term Code Map ideas remain out of scope for v1: semantic summaries,
+LLM-generated descriptions, a full call graph, watch mode, an IDE extension,
+visual dependency graphs, an MCP server, embeddings, and cross-repository
+indexes. Additional product integrations should wait until the current Figma and
+Jira paths have real user feedback.
 
 **Copilot is the exception.** It can't open files on demand, so its instruction
 file is *generated* — the always-on rules and your resolved policy flattened into
@@ -260,10 +326,15 @@ on-demand policy and workflows with `add-module --module figma` or
 {
   "integrations": {
     "figma": { "enabled": true, "mode": "read", "componentMapping": true },
-    "jira": { "enabled": true, "projectKeys": ["WEB"], "write": "confirm" }
+    "jira": { "enabled": true, "projectKeys": ["PROJ", "APP"], "write": "confirm" }
   }
 }
 ```
+
+An enabled integration must also have its module installed; `check` rejects an
+enabled-but-missing capability. Jira project keys are an explicit boundary for
+reads and writes. Access outside that list requires approval, independently of
+the approval still required for every Jira write.
 
 These values describe capability and permission policy only. Credentials and
 sessions belong to the user's integration client and must never be committed.
@@ -301,8 +372,8 @@ standards/framework/  per framework        components, data flow, routing
 
 And two ways by **when** they load. Four files are always in your assistant's
 context — the guardrails, the core rules, your platform, and your framework.
-That is roughly 3,000 tokens, and it covers everything that shapes code as it is
-being written.
+That is roughly 3,800 tokens with the generic adapter entry. Exact counts vary by
+stack and tokenizer.
 
 Everything else — testing standards, git conventions, forms, performance,
 accessibility audits — loads only when relevant. `standards/core/rules.md` opens
@@ -311,7 +382,7 @@ first." So the cost stays low without the detail being lost.
 
 ```mermaid
 flowchart TB
-    subgraph resident["ALWAYS LOADED · ~3k tokens · every session"]
+    subgraph resident["ALWAYS LOADED · ~3.8k tokens · every session"]
         direction LR
         G["core/guardrails.md<br/><i>never commit unasked</i>"]
         R["core/rules.md<br/><i>types · naming · errors</i><br/><b>+ routing table</b>"]
@@ -381,6 +452,9 @@ Always pass `--adapter`. Without it you get the standards but no entry file, so
 nothing loads them.
 
 ```bash
+# Guided setup; always previews before confirmation
+node scripts/standards.mjs init --target ../project
+
 # Preview an installation; writes nothing
 node scripts/standards.mjs install --target ../project --manifest vue --mode legacy --adapter claude
 
@@ -402,6 +476,11 @@ node scripts/standards.mjs uninstall --target ../project --apply
 node scripts/standards.mjs add-module --target ../project --module forms --apply
 node scripts/standards.mjs remove-module --target ../project --module forms --apply
 
+# Build, query, and check the repository navigation index
+node scripts/standards.mjs map build --target ../project
+node scripts/standards.mjs map find "user status" --target ../project
+node scripts/standards.mjs map check --target ../project
+
 # Verify this repository itself (for maintainers)
 node scripts/validate.mjs               # static checks, then real installs
 node scripts/validate.mjs --fast        # static checks only; skips the install matrix
@@ -410,16 +489,19 @@ node scripts/validate.mjs --integration # same coverage as the full run, labelle
 
 Install refuses to overwrite existing files. Sync compares hashes recorded in
 `standards/install-lock.json`, stops if you edited a shared file, and needs
-`--apply` to write anything.
+`--apply` to write anything. Lifecycle commands reject lockfile paths that leave
+the target and refuse managed paths containing symbolic links.
 
 Optional flags: `--adapter`, `--unit-test-runner`, `--e2e-runner`, `--styling`,
-`--state-management`, `--server-state`. Each manifest has a recommended default.
+`--state-management`, `--server-state`, `--package-manager`. Each manifest has
+a recommended default.
 Use `--unit-test-runner project-existing` if you have a runner this repo does not
 ship a reference for, then write its real name into `project.json`.
 
-Node built-ins only. This is not an npm package, and its tooling never installs
-anything. Your app can use whatever package manager it likes — its commands go in
-trusted `standards/execution.json`.
+The tooling uses Node built-ins and installs no dependencies. This repository is
+currently distributed from source rather than as an npm package. Your app can
+use any package manager; its commands go in trusted
+`standards/execution.json`.
 
 </details>
 
@@ -433,7 +515,7 @@ standards/
   framework/      always loaded · nextjs · react · vue · angular · react-native
   reference/      on demand · 23 files, routed from core/rules.md
 workflows/        23 prompt docs, tool-agnostic
-adapters/         claude · agents · cursor · copilot
+adapters/         claude · agents · cursor · copilot · qwen · kimi
 enforcement/      git hook templates; adapt before enabling
 adoption/         rollout · conformance · governance · estate
 manifests/        per-stack install sets
