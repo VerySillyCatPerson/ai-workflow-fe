@@ -176,7 +176,11 @@ const maintaining = readFileSync(join(root, 'MAINTAINING.md'), 'utf8');
 if (!maintaining.includes('`scripts/` when validating a named')) errors.push('MAINTAINING.md does not allow adapter names in validator scripts');
 if (!maintaining.includes('`a11y.md` and') || !maintaining.includes('`security-scan.md`')) errors.push('MAINTAINING.md does not document skill name frontmatter');
 const jiraRules = readFileSync(join(root, 'integrations/jira/rules.md'), 'utf8');
-for (const phrase of ['both reads and writes', 'requires\n  explicit approval', 'Never silently widen']) if (!jiraRules.includes(phrase)) errors.push(`Jira rules do not preserve projectKeys boundary: ${phrase}`);
+for (const [label, pattern] of [
+  ['both reads and writes', /both reads and writes/],
+  ['requires explicit approval', /requires\s+explicit approval/],
+  ['Never silently widen', /Never silently widen/],
+]) if (!pattern.test(jiraRules)) errors.push(`Jira rules do not preserve projectKeys boundary: ${label}`);
 
 if (fastOnly) {
   if (errors.length) {
