@@ -72,7 +72,7 @@
     },
     "integrations": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "properties": {
         "figma": {
           "type": "object", "additionalProperties": false,

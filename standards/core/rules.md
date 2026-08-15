@@ -25,6 +25,10 @@ Project mode controls adoption scope, not a hidden set of numbers:
 The templates contain recommended starting values. Once copied, every effective
 value is explicit and editable in `project.json`.
 
+Before broad repository exploration, query `.ai/code-map.json` when available
+to identify likely files and symbols. Use the map only for navigation: source
+files are implementation truth, and the repository wins when the map is stale.
+
 ## Read before acting
 
 Not optional, not guessable — read the file.

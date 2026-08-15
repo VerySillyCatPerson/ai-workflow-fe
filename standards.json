@@ -1,7 +1,7 @@
 {
   "name": "ai-workflow-fe",
-  "version": "1.1.0",
-  "updated": "2026-08-11",
+  "version": "1.2.0",
+  "updated": "2026-08-15",
 
   "$comment": [
     "This file is copied into each consuming project as standards/standards.json.",
@@ -30,11 +30,12 @@
   "toolAgnostic": {
     "$comment": "standards/ is tool-neutral; workflow bodies are portable while frontmatter may be adapter-oriented.",
     "source": ["standards/", "workflows/"],
-    "adapters": ["adapters/claude", "adapters/agents", "adapters/cursor", "adapters/copilot"],
+    "adapters": ["adapters/claude", "adapters/agents", "adapters/cursor", "adapters/copilot", "adapters/qwen", "adapters/kimi"],
     "enforcement": "enforcement/ — git hooks and local checks"
   },
 
   "changelog": {
+    "1.2.0": "Added guided setup with one consolidated preview and reviewed package commands, rollback-protected install, sync, wizard, module, and uninstall operations, deterministic symlink-safe Code Map navigation with re-export and local usage tracking, first-class Qwen and Kimi adapters, strict integration validation and Jira project boundaries, contained managed-file lifecycle operations, reversible Claude settings merges, complete execution-schema validation, plus Linux and Windows CI configuration.",
     "1.1.0": "Separated executable validation commands from agent-editable project policy, added guarded execution configuration and safe legacy migration, expanded installer/sync/uninstall safety coverage, and introduced opt-in Figma and Jira capabilities with design-to-code and ticket-to-code workflows."
   }
 }

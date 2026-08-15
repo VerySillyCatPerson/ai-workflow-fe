@@ -12,6 +12,8 @@ adapter is that file.
 | **Codex / AGENTS.md tools** | Supported adapter | `AGENTS.md` | Yes | By path reference |
 | **Cursor** | Supported adapter | `.cursor/rules/*.mdc` | Yes | By path reference |
 | **Copilot** | Supported resident-only generator | `.github/copilot-instructions.md` | No | Not supported |
+| **Qwen Code** | Supported adapter | `QWEN.md` | Yes | By path reference |
+| **Kimi Code** | Supported adapter | `.kimi/AGENTS.md` | Yes | By path reference |
 | **Windsurf** | Compatible, unvalidated | `.windsurf/rules/` | Expected | By path reference |
 | **Aider** | Compatible, unvalidated | `CONVENTIONS.md` | Expected | By path reference |
 
@@ -31,7 +33,7 @@ repository does not ship or validate a dedicated adapter for it.
 
 ## Installing
 
-1. Install with `--adapter claude|codex|cursor|copilot` (comma-separate multiple)
+1. Install with `--adapter claude|codex|cursor|copilot|qwen|kimi` (comma-separate multiple)
 2. Fill the installed entry file's Project specifics
 3. Fill stack choices in `standards/project.json` and human-review validation commands in trusted `standards/execution.json`
 4. Optionally adapt and install `enforcement/` (see below)

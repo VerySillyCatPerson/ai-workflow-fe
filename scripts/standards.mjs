@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { validateValue } from './lib/schema.mjs';
+import { moduleEntries } from './lib/modules.mjs';
 import { generateCopilot } from '../adapters/copilot/build.mjs';
 
 const source = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -13,9 +14,20 @@ const action = args[0];
 const option = (name) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : null; };
 const target = option('target') && resolve(option('target'));
 const apply = args.includes('--apply');
+const planJson = args.includes('--plan-json');
 const fail = (message) => { console.error(message); process.exit(1); };
-const usage = 'Usage: node scripts/standards.mjs <install|check|sync|uninstall|add-module|remove-module> --target <project> [--manifest vue] [--mode greenfield|legacy] [--adapter claude,codex,cursor,copilot] [--module forms|figma|jira] [--remove-obsolete] [--apply]';
-if (!['check', 'install', 'sync', 'uninstall', 'add-module', 'remove-module'].includes(action) || !target) fail(usage);
+const usage = 'Usage: node scripts/standards.mjs <init|map|install|check|sync|uninstall|add-module|remove-module> --target <project> [options]';
+if (!['init', 'map', 'check', 'install', 'sync', 'uninstall', 'add-module', 'remove-module'].includes(action) || !target) fail(usage);
+if (action === 'init') {
+  const { runWizard } = await import('./lib/wizard.mjs');
+  await runWizard({ source, target, args });
+  process.exit(0);
+}
+if (action === 'map') {
+  const { runCodeMap } = await import('./lib/code-map.mjs');
+  await runCodeMap({ target, args: args.slice(1) });
+  process.exit(0);
+}
 
 const routingPath = 'standards/core/rules.md';
 const required = ['standards/standards.json', 'standards/project.json', 'standards/project.schema.json', 'standards/execution.json', 'standards/execution.schema.json', 'standards/core/guardrails.md', routingPath];
@@ -26,6 +38,61 @@ const hashFile = (path) => createHash('sha256').update(readFileSync(path)).diges
 const stripBom = (text) => text.replace(/^﻿/, '');
 const readJson = (path, label = path) => { try { return JSON.parse(stripBom(readFileSync(path, 'utf8'))); } catch (error) { fail(`${label}: ${error.message}`); } };
 const writeJson = (path, value) => writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+
+function snapshotPaths(paths) {
+  return new Map([...new Set(paths)].map((path) => {
+    const absolute = join(target, path);
+    return [path, existsSync(absolute) ? readFileSync(absolute) : null];
+  }));
+}
+
+function restoreSnapshots(snapshots) {
+  for (const [path, snapshot] of snapshots) {
+    const absolute = join(target, path);
+    if (snapshot === null) {
+      if (existsSync(absolute)) rmSync(absolute);
+    } else {
+      mkdirSync(dirname(absolute), { recursive: true });
+      writeFileSync(absolute, snapshot);
+    }
+  }
+}
+
+function confinedPath(root, path, label) {
+  if (typeof path !== 'string' || !path || isAbsolute(path)) fail(`${label}: expected a non-empty relative path`);
+  const rootPath = resolve(root), destination = resolve(rootPath, path), fromRoot = relative(rootPath, destination);
+  if (!fromRoot || fromRoot === '..' || fromRoot.startsWith(`..${sep}`) || isAbsolute(fromRoot)) fail(`${label}: path escapes its root: ${path}`);
+  return destination;
+}
+
+function managedPath(root, path, label) {
+  const destination = confinedPath(root, path, label);
+  const rootPath = resolve(root);
+  let cursor = rootPath;
+  for (const segment of relative(rootPath, destination).split(/[\\/]/)) {
+    cursor = join(cursor, segment);
+    if (existsSync(cursor) && lstatSync(cursor).isSymbolicLink()) fail(`${label}: symbolic links are not allowed in managed paths: ${path}`);
+  }
+  return destination;
+}
+
+function validateLock(lock) {
+  if (!lock || typeof lock !== 'object' || !/^[a-z0-9-]+$/.test(lock.manifest ?? '')) fail('standards/install-lock.json: invalid manifest');
+  confinedPath(source, `manifests/${lock.manifest}.json`, 'standards/install-lock.json.manifest');
+  for (const [path, record] of Object.entries(lock.files ?? {})) {
+    managedPath(target, path, `standards/install-lock.json.files.${path}`);
+    if (!record || typeof record !== 'object' || typeof record.source !== 'string') fail(`standards/install-lock.json.files.${path}: invalid record`);
+    if (!record.source.startsWith('GENERATED:')) managedPath(source, record.source, `standards/install-lock.json.files.${path}.source`);
+  }
+  return lock;
+}
+
+function validateCopies(copies, label) {
+  for (const [sourcePath, destinationPath] of copies) {
+    managedPath(target, destinationPath, `${label}.destination`);
+    if (!sourcePath.startsWith('GENERATED:')) managedPath(source, sourcePath, `${label}.source`);
+  }
+}
 
 function policyErrors(targetRoot) {
   const errors = [];
@@ -55,7 +122,7 @@ function policyErrors(targetRoot) {
 
 function tableRange(lines) {
   const header = lines.findIndex((line) => /^\| Doing \| Read \|$/.test(line.trim()));
-  if (header < 0) fail(`${routingPath}: routing table header not found`);
+  if (header < 0) throw new Error(`${routingPath}: routing table header not found`);
   let end = header + 2;
   while (end < lines.length && lines[end].trim().startsWith('|')) end += 1;
   return { header, end };
@@ -115,13 +182,15 @@ function adapterCopies(names, manifest) {
       for (const workflow of manifest.commands.core) copies.set(workflow, `.claude/commands/${workflow.split('/').pop()}`);
       for (const skill of manifest.skills) copies.set(skill, `.claude/skills/${skill.split('/').pop().replace(/\.md$/, '')}/SKILL.md`);
     } else if (name === 'codex') copies.set('adapters/agents/AGENTS.md', 'AGENTS.md');
+    else if (name === 'qwen') copies.set('adapters/qwen/QWEN.md', 'QWEN.md');
+    else if (name === 'kimi') copies.set('adapters/kimi/AGENTS.md', '.kimi/AGENTS.md');
     else if (name === 'cursor') copies.set('adapters/cursor/standards.mdc', '.cursor/rules/standards.mdc');
-    else if (name !== 'copilot') fail(`Unknown adapter: ${raw}. Choose claude, codex, cursor, copilot.`);
+    else if (name !== 'copilot') fail(`Unknown adapter: ${raw}. Choose claude, codex, cursor, copilot, qwen, kimi.`);
   }
   return copies;
 }
 
-const editableAdapterPaths = new Set(['CLAUDE.md', 'AGENTS.md', '.cursor/rules/standards.mdc']);
+const editableAdapterPaths = new Set(['CLAUDE.md', 'AGENTS.md', 'QWEN.md', '.kimi/AGENTS.md', '.cursor/rules/standards.mdc']);
 const isAdapterPath = (path) => editableAdapterPaths.has(path) || path.startsWith('.claude/') || path === '.github/copilot-instructions.md';
 
 function resolveAdapterText(path, manifest, mode) {
@@ -173,7 +242,8 @@ function claudeSettingsMissing(destination, sourcePath) {
 }
 
 function mergeClaudeSettings(destination, sourcePath) {
-  const existing = readJson(destination, destination), incoming = readJson(sourcePath, sourcePath);
+  const existing = JSON.parse(stripBom(readFileSync(destination, 'utf8'))), incoming = JSON.parse(stripBom(readFileSync(sourcePath, 'utf8')));
+  const added = claudeSettingsAdditions(existing, incoming);
   const merged = { ...incoming, ...existing, permissions: {}, hooks: {} };
   for (const key of ['deny', 'ask', 'allow']) merged.permissions[key] = [...new Set([...(existing.permissions?.[key] ?? []), ...(incoming.permissions?.[key] ?? [])])];
   for (const key of new Set([...Object.keys(existing.hooks ?? {}), ...Object.keys(incoming.hooks ?? {})])) {
@@ -181,28 +251,51 @@ function mergeClaudeSettings(destination, sourcePath) {
     merged.hooks[key] = [...(existing.hooks?.[key] ?? []), ...(incoming.hooks?.[key] ?? [])].filter((item) => { const id = JSON.stringify(item); if (seen.has(id)) return false; seen.add(id); return true; });
   }
   writeJson(destination, merged);
+  return added;
 }
 
-function moduleEntries(manifest) {
-  const entries = new Map();
-  for (const path of [...Object.keys(manifest.resident_optional ?? {}), ...Object.keys(manifest.reference?.optional ?? {}), ...Object.keys(manifest.commands?.optional ?? {})]) {
-    const name = path.split('/').pop().replace(/\.md$/, '');
-    entries.set(name, [...(entries.get(name) ?? []), path]);
+function claudeSettingsAdditions(existing, incoming) {
+  const added = { topLevel: [], permissions: {}, hooks: {} };
+  for (const key of Object.keys(incoming)) if (!['permissions', 'hooks'].includes(key) && !(key in existing)) added.topLevel.push(key);
+  for (const key of ['deny', 'ask', 'allow']) {
+    const existingItems = new Set(existing.permissions?.[key] ?? []);
+    added.permissions[key] = (incoming.permissions?.[key] ?? []).filter((item) => !existingItems.has(item));
   }
-  if (entries.has('perf')) {
-    const performance = manifest.platform === 'native' ? 'standards/reference/performance-native.md' : 'standards/reference/performance-web.md';
-    entries.set('perf', [...entries.get('perf'), performance]);
+  for (const [key, items] of Object.entries(incoming.hooks ?? {})) {
+    const existingItems = new Set((existing.hooks?.[key] ?? []).map((item) => JSON.stringify(item)));
+    added.hooks[key] = items.filter((item) => !existingItems.has(JSON.stringify(item)));
   }
-  if (entries.has('api-types')) entries.set('api-types', [...entries.get('api-types'), 'standards/reference/api-contracts.md']);
-  entries.set('figma', ['integrations/figma/rules.md', 'integrations/figma/workflows.md', 'workflows/design-to-code.md', 'workflows/ticket-design-to-code.md']);
-  entries.set('jira', ['integrations/jira/rules.md', 'integrations/jira/workflows.md', 'workflows/ticket-to-code.md', 'workflows/ticket-design-to-code.md']);
-  return entries;
+  return added;
+}
+
+function unmergeClaudeSettings(destination, sourcePath, added) {
+  const current = readJson(destination, destination), incoming = readJson(sourcePath, sourcePath);
+  for (const key of added.topLevel ?? []) if (JSON.stringify(current[key]) === JSON.stringify(incoming[key])) delete current[key];
+  for (const key of ['deny', 'ask', 'allow']) {
+    const remove = new Set(added.permissions?.[key] ?? []);
+    if (current.permissions?.[key]) current.permissions[key] = current.permissions[key].filter((item) => !remove.has(item));
+  }
+  for (const [key, items] of Object.entries(added.hooks ?? {})) {
+    const remove = new Set(items.map((item) => JSON.stringify(item)));
+    if (current.hooks?.[key]) current.hooks[key] = current.hooks[key].filter((item) => !remove.has(JSON.stringify(item)));
+  }
+  writeJson(destination, current);
+}
+
+function combineClaudeSettingsAdditions(left = {}, right = {}) {
+  const combined = { topLevel: [...new Set([...(left.topLevel ?? []), ...(right.topLevel ?? [])])], permissions: {}, hooks: {} };
+  for (const key of ['deny', 'ask', 'allow']) combined.permissions[key] = [...new Set([...(left.permissions?.[key] ?? []), ...(right.permissions?.[key] ?? [])])];
+  for (const key of new Set([...Object.keys(left.hooks ?? {}), ...Object.keys(right.hooks ?? {})])) {
+    const seen = new Set();
+    combined.hooks[key] = [...(left.hooks?.[key] ?? []), ...(right.hooks?.[key] ?? [])].filter((item) => { const id = JSON.stringify(item); if (seen.has(id)) return false; seen.add(id); return true; });
+  }
+  return combined;
 }
 
 function readLock() {
   const path = join(target, 'standards/install-lock.json');
   if (!existsSync(path)) fail('No standards/install-lock.json; reinstall into a clean target first.');
-  return { path, value: readJson(path, 'standards/install-lock.json') };
+  return { path, value: validateLock(readJson(path, 'standards/install-lock.json')) };
 }
 
 if (action === 'check') {
@@ -214,8 +307,13 @@ if (action === 'check') {
   const lockPath = join(target, 'standards/install-lock.json');
   if (!existsSync(lockPath)) errors.push('standards/install-lock.json is missing');
   else {
-    const lock = readJson(lockPath);
+    const lock = validateLock(readJson(lockPath));
     const manifest = readJson(join(source, 'manifests', `${lock.manifest}.json`));
+    const policy = readJson(join(target, 'standards/project.json'));
+    const installedModules = new Set(lock.modules ?? []);
+    for (const [name, config] of Object.entries(policy.integrations ?? {})) {
+      if (config?.enabled === true && !installedModules.has(name)) errors.push(`integration ${name} is enabled but its module is not installed; run add-module --module ${name} --apply`);
+    }
     for (const warning of lock.partialAdapters ?? []) {
       const path = warning.replace(/ existed and was not replaced$/, '');
       const record = lock.files?.[path], installed = join(target, path);
@@ -256,18 +354,31 @@ if (action === 'add-module' || action === 'remove-module') {
   const manifest = readJson(join(source, 'manifests', `${lock.manifest}.json`));
   const modulePaths = moduleEntries(manifest).get(moduleName);
   if (!modulePaths) fail(`Unknown module for ${lock.manifest}: ${moduleName}. Choose: ${[...moduleEntries(manifest).keys()].join(', ')}`);
+  for (const modulePath of modulePaths) {
+    managedPath(source, modulePath, `${action}.source`);
+    managedPath(target, modulePath, `${action}.destination`);
+  }
   if (action === 'add-module') {
     const conflicts = modulePaths.filter((path) => existsSync(join(target, path)) && !lock.files[path]);
     if (conflicts.length) fail(`Module files exist outside the install lock:\n${conflicts.map((x) => `- ${x}`).join('\n')}`);
     if ((lock.modules ?? []).includes(moduleName)) fail(`Module already installed: ${moduleName}`);
     console.log(`${apply ? 'Adding' : 'Would add'} ${moduleName}:\n${modulePaths.map((x) => `  ${x}`).join('\n')}`);
     if (!apply) process.exit(0);
-    for (const modulePath of modulePaths) {
-      const destination = join(target, modulePath);
-      if (!existsSync(destination)) { mkdirSync(dirname(destination), { recursive: true }); cpSync(join(source, modulePath), destination); }
-      lock.files[modulePath] = { source: modulePath, sourceHash: hashFile(join(source, modulePath)), installedHash: hashFile(destination) };
+    const snapshots = snapshotPaths([...modulePaths, routingPath, 'standards/install-lock.json']);
+    try {
+      for (const modulePath of modulePaths) {
+        const destination = join(target, modulePath);
+        if (!existsSync(destination)) { mkdirSync(dirname(destination), { recursive: true }); cpSync(join(source, modulePath), destination); }
+        lock.files[modulePath] = { source: modulePath, sourceHash: hashFile(join(source, modulePath)), installedHash: hashFile(destination) };
+      }
+      lock.modules = [...new Set([...(lock.modules ?? []), moduleName])].sort();
+      renderRoutingTable(target, lock.manifest, manifest.runnerReferences[lock.unitTestRunner]);
+      if (lock.files[routingPath]) lock.files[routingPath].installedHash = hashFile(join(target, routingPath));
+      writeJson(lockPath, lock);
+    } catch (error) {
+      restoreSnapshots(snapshots);
+      fail(`Module change rolled back: ${error.message}`);
     }
-    lock.modules = [...new Set([...(lock.modules ?? []), moduleName])].sort();
   } else {
     if (!(lock.modules ?? []).includes(moduleName)) fail(`Module is not installed: ${moduleName}`);
     const remainingModules = (lock.modules ?? []).filter((x) => x !== moduleName);
@@ -280,12 +391,18 @@ if (action === 'add-module' || action === 'remove-module') {
     }
     console.log(`${apply ? 'Removing' : 'Would remove'} ${moduleName}:\n${removable.map((x) => `  ${x}`).join('\n')}`);
     if (!apply) process.exit(0);
-    for (const modulePath of removable) { rmSync(join(target, modulePath)); delete lock.files[modulePath]; }
-    lock.modules = remainingModules;
+    const snapshots = snapshotPaths([...removable, routingPath, 'standards/install-lock.json']);
+    try {
+      for (const modulePath of removable) { rmSync(join(target, modulePath)); delete lock.files[modulePath]; }
+      lock.modules = remainingModules;
+      renderRoutingTable(target, lock.manifest, manifest.runnerReferences[lock.unitTestRunner]);
+      if (lock.files[routingPath]) lock.files[routingPath].installedHash = hashFile(join(target, routingPath));
+      writeJson(lockPath, lock);
+    } catch (error) {
+      restoreSnapshots(snapshots);
+      fail(`Module change rolled back: ${error.message}`);
+    }
   }
-  renderRoutingTable(target, lock.manifest, manifest.runnerReferences[lock.unitTestRunner]);
-  if (lock.files[routingPath]) lock.files[routingPath].installedHash = hashFile(join(target, routingPath));
-  writeJson(lockPath, lock);
   console.log(`${moduleName} ${action === 'add-module' ? 'added' : 'removed'}; routing and lock updated.`);
   process.exit(0);
 }
@@ -293,18 +410,47 @@ if (action === 'add-module' || action === 'remove-module') {
 if (action === 'uninstall') {
   const { path: lockPath, value: lock } = readLock();
   const removable = [];
+  const editableCleanup = [];
+  const mergeCleanup = [];
   const unsafe = [];
   for (const [path, record] of Object.entries(lock.files ?? {})) {
     const installed = join(target, path);
     if (!existsSync(installed)) continue;
-    if (record.editable || record.merge || record.preserved || hashFile(installed) !== (record.installedHash ?? record.hash)) unsafe.push(path);
+    if (record.editable) {
+      if (hashFile(installed) === (record.installedHash ?? record.hash)) removable.push(path);
+      else if (managedBlock(readFileSync(installed, 'utf8'))) editableCleanup.push(path);
+      else unsafe.push(path);
+    }
+    else if (record.merge === 'claude-settings') {
+      if (!record.mergeAdded) unsafe.push(path);
+      else if (record.mergeOwned && hashFile(installed) === (record.installedHash ?? record.hash)) removable.push(path);
+      else mergeCleanup.push(path);
+    }
+    else if (record.merge || record.preserved || hashFile(installed) !== (record.installedHash ?? record.hash)) unsafe.push(path);
     else removable.push(path);
   }
-  console.log(`${apply ? 'Uninstalling' : 'Would uninstall'} ${removable.length} managed files.`);
+  console.log(`${apply ? 'Uninstalling' : 'Would uninstall'} ${removable.length} managed files, clean ${editableCleanup.length} modified adapter files, and unmerge ${mergeCleanup.length} settings files.`);
   if (unsafe.length) console.log(`Preserving locally controlled or modified files:\n${unsafe.map((x) => `  ${x}`).join('\n')}`);
   if (!apply) { console.log('Preview only. Re-run with --apply after review.'); process.exit(0); }
-  for (const path of removable) rmSync(join(target, path));
-  rmSync(lockPath);
+  // Parse merged settings before the first mutation so malformed local JSON
+  // fails without requiring rollback.
+  for (const path of mergeCleanup) JSON.parse(stripBom(readFileSync(join(target, path), 'utf8')));
+  const uninstallSnapshots = snapshotPaths([...removable, ...editableCleanup, ...mergeCleanup, 'standards/install-lock.json']);
+  try {
+    for (const path of removable) rmSync(join(target, path));
+    for (const path of editableCleanup) {
+      const installed = join(target, path), current = readFileSync(installed, 'utf8');
+      const start = current.indexOf(managedStart), end = current.indexOf(managedEnd);
+      const remaining = `${current.slice(0, start)}${current.slice(end + managedEnd.length)}`.trim();
+      if (remaining) writeFileSync(installed, `${remaining}\n`, 'utf8');
+      else rmSync(installed);
+    }
+    for (const path of mergeCleanup) unmergeClaudeSettings(join(target, path), join(source, lock.files[path].source), lock.files[path].mergeAdded);
+    rmSync(lockPath);
+  } catch (error) {
+    restoreSnapshots(uninstallSnapshots);
+    fail(`Uninstall rolled back: ${error.message}`);
+  }
   console.log('Uninstall complete; project policy, trusted execution configuration, modified files, and unrelated files were preserved.');
   process.exit(0);
 }
@@ -319,10 +465,11 @@ if (action === 'sync') {
   for (const moduleName of lock.modules ?? []) for (const path of moduleEntries(manifest).get(moduleName) ?? []) desired.set(path, path);
   for (const [from, to] of adapterCopies(lock.adapters ?? [], manifest)) desired.set(from, to);
   if ((lock.adapters ?? []).includes('copilot')) desired.set('GENERATED:copilot', '.github/copilot-instructions.md');
+  validateCopies(desired, 'sync');
   const updates = [], additions = [], localChanges = [];
   for (const [from, installed] of desired) {
     const destination = join(target, installed), upstream = join(source, from), record = lock.files[installed];
-    if (!record || !existsSync(destination)) { additions.push({ installed, source: from }); continue; }
+    if (!record || !existsSync(destination)) { additions.push({ installed, source: from, ...(installed === '.claude/settings.json' ? { merge: 'claude-settings' } : {}) }); continue; }
     if (record.editable) {
       const expected = managedBlock(managedAdapterText(upstream, manifest, lock.mode, false));
       if (managedBlock(readFileSync(destination, 'utf8')) !== expected) updates.push({ installed, source: from, editable: true });
@@ -349,6 +496,13 @@ if (action === 'sync') {
   if (needsExecutionMigration) console.log(`${apply ? 'Migrating' : 'Would migrate'} executable commands from project.json to trusted standards/execution.json.`);
   if (obsolete.length) console.log(`${args.includes('--remove-obsolete') ? (apply ? 'Removing' : 'Would remove') : 'Obsolete files (use --remove-obsolete to remove safely)'}:\n${obsolete.map((x) => `  ${x}`).join('\n')}`);
   if (!apply) { console.log('Preview only. Re-run with --apply after review.'); process.exit(0); }
+  const syncSnapshots = snapshotPaths([
+    ...updates.map((item) => item.installed),
+    ...additions.map((item) => item.installed),
+    ...(args.includes('--remove-obsolete') ? obsolete : []),
+    routingPath, 'standards/project.json', 'standards/execution.json', 'standards/install-lock.json',
+  ]);
+  try {
   const targetVersion = readJson(join(source, 'standards.json')).version;
   const policyPath = join(target, 'standards/project.json'), policy = readJson(policyPath);
   if (needsExecutionMigration) {
@@ -360,17 +514,28 @@ if (action === 'sync') {
   policy.integrations ??= {};
   policy.standardsVersion = targetVersion;
   writeJson(policyPath, policy);
+  const syncMergeRecords = new Map();
   for (const item of [...updates, ...additions]) {
     const destination = join(target, item.installed); mkdirSync(dirname(destination), { recursive: true });
     if (item.editable) updateManagedAdapter(destination, join(source, item.source), manifest, lock.mode);
-    else if (item.merge === 'claude-settings') mergeClaudeSettings(destination, join(source, item.source));
+    else if (item.merge === 'claude-settings') {
+      if (existsSync(destination)) syncMergeRecords.set(item.installed, { added: mergeClaudeSettings(destination, join(source, item.source)), owned: false });
+      else {
+        cpSync(join(source, item.source), destination);
+        syncMergeRecords.set(item.installed, { added: claudeSettingsAdditions({}, readJson(join(source, item.source))), owned: true });
+      }
+    }
     else if (item.source === 'GENERATED:copilot') {
       try { generateCopilot({ stack: lock.manifest, platform: manifest.platform, root: join(source, 'standards'), policyPath: join(target, 'standards/project.json'), out: destination }); }
-      catch (error) { fail(`Copilot adapter failed: ${error.message}`); }
+      catch (error) { throw new Error(`Copilot adapter failed: ${error.message}`); }
     } else cpSync(join(source, item.source), destination);
   }
   renderRoutingTable(target, lock.manifest, manifest.runnerReferences[lock.unitTestRunner]);
-  for (const item of [...updates, ...additions]) lock.files[item.installed] = { source: item.source, sourceHash: item.source.startsWith('GENERATED:') ? hashFile(join(target, item.installed)) : hashFile(join(source, item.source)), installedHash: hashFile(join(target, item.installed)), ...(item.editable ? { editable: true } : {}), ...(item.merge ? { merge: item.merge } : {}) };
+  for (const item of [...updates, ...additions]) {
+    const previous = lock.files[item.installed] ?? {};
+    const syncMerge = syncMergeRecords.get(item.installed);
+    lock.files[item.installed] = { source: item.source, sourceHash: item.source.startsWith('GENERATED:') ? hashFile(join(target, item.installed)) : hashFile(join(source, item.source)), installedHash: hashFile(join(target, item.installed)), ...(item.editable ? { editable: true } : {}), ...(item.merge ? { merge: item.merge, mergeAdded: combineClaudeSettingsAdditions(previous.mergeAdded, syncMerge?.added), ...((previous.mergeOwned || syncMerge?.owned) ? { mergeOwned: true } : {}) } : {}) };
+  }
   if (args.includes('--remove-obsolete')) for (const path of obsolete) { rmSync(join(target, path)); delete lock.files[path]; }
   lock.partialAdapters = (lock.partialAdapters ?? []).filter((warning) => {
     const path = warning.replace(/ existed and was not replaced$/, ''), record = lock.files[path];
@@ -379,6 +544,10 @@ if (action === 'sync') {
   if (lock.files[routingPath]) lock.files[routingPath].installedHash = hashFile(join(target, routingPath));
   lock.standardsVersion = targetVersion;
   writeJson(lockPath, lock);
+  } catch (error) {
+    restoreSnapshots(syncSnapshots);
+    fail(`Sync rolled back: ${error.message}`);
+  }
   console.log('Sync complete; project policy and local changes were preserved.');
   process.exit(0);
 }
@@ -393,47 +562,86 @@ const adapters = (option('adapter') ?? '').split(',').filter(Boolean).map((x) =>
 const copies = baseCopies(manifest, mode, unitTestRunner);
 for (const [from, to] of adapterCopies(adapters, manifest)) copies.set(from, to);
 if (adapters.includes('copilot')) copies.delete('copilot-generated');
+validateCopies(copies, 'install');
+if (adapters.includes('copilot')) managedPath(target, '.github/copilot-instructions.md', 'install.destination');
 const conflicts = [...copies.values()].filter((path) => existsSync(join(target, path)) && !isAdapterPath(path));
+if (planJson) {
+  const create = [...copies.values(), ...(adapters.includes('copilot') ? ['.github/copilot-instructions.md'] : [])].filter((path) => !existsSync(join(target, path)));
+  const modify = [...copies.values(), ...(adapters.includes('copilot') ? ['.github/copilot-instructions.md'] : [])].filter((path) => existsSync(join(target, path)) && (editableAdapterPaths.has(path) || path === '.claude/settings.json' || path === '.github/copilot-instructions.md'));
+  console.log(JSON.stringify({ create: [...new Set(create)].sort(), modify: [...new Set(modify)].sort(), conflicts: [...new Set(conflicts)].sort() }));
+  process.exit(0);
+}
 console.log(`${apply ? 'Installing' : 'Would install'} ${copies.size} files for ${stack}/${mode} with ${unitTestRunner}${adapters.length ? `; adapters: ${adapters.join(', ')}` : ''}.`);
 if (conflicts.length) fail(`Refusing to overwrite existing files:\n${conflicts.map((x) => `- ${x}`).join('\n')}`);
 if (!apply) { console.log('Preview only. Re-run with --apply after review.'); process.exit(0); }
 const writtenCopies = new Map();
 const preservedAdapterPaths = new Set();
+const mergeRecords = new Map();
 const partialAdapters = [];
-for (const [from, to] of copies) {
-  const destination = join(target, to); mkdirSync(dirname(destination), { recursive: true });
-  if (existsSync(destination)) {
-    if (editableAdapterPaths.has(to)) {
-      updateManagedAdapter(destination, join(source, from), manifest, mode);
-      writtenCopies.set(from, to);
-    } else if (to === '.claude/settings.json') {
-      mergeClaudeSettings(destination, join(source, from));
-      writtenCopies.set(from, to);
-    } else {
-      console.log(`Preserved existing adapter file: ${to}`);
-      writtenCopies.set(from, to);
-      preservedAdapterPaths.add(to);
-      if (hashFile(destination) !== hashFile(join(source, from))) partialAdapters.push(to);
+const installPaths = new Set([...copies.values(), ...(adapters.includes('copilot') ? ['.github/copilot-instructions.md'] : []), 'standards/install-lock.json']);
+const installSnapshots = new Map([...installPaths].map((path) => { const destination = join(target, path); return [path, existsSync(destination) ? readFileSync(destination) : null]; }));
+const targetExistedBeforeInstall = existsSync(target);
+const createdDirectories = [];
+const ensureInstallDirectory = (directory) => {
+  const missing = [];
+  let cursor = directory;
+  while (relative(resolve(target), resolve(cursor)) && !existsSync(cursor)) { missing.push(cursor); cursor = dirname(cursor); }
+  mkdirSync(directory, { recursive: true });
+  createdDirectories.push(...missing);
+};
+let installedPolicy;
+try {
+  for (const [from, to] of copies) {
+    const destination = join(target, to); ensureInstallDirectory(dirname(destination));
+    if (existsSync(destination)) {
+      if (editableAdapterPaths.has(to)) {
+        updateManagedAdapter(destination, join(source, from), manifest, mode);
+        writtenCopies.set(from, to);
+      } else if (to === '.claude/settings.json') {
+        mergeRecords.set(to, { mergeOwned: false, mergeAdded: mergeClaudeSettings(destination, join(source, from)) });
+        writtenCopies.set(from, to);
+      } else {
+        console.log(`Preserved existing adapter file: ${to}`);
+        writtenCopies.set(from, to);
+        preservedAdapterPaths.add(to);
+        if (hashFile(destination) !== hashFile(join(source, from))) partialAdapters.push(to);
+      }
+      continue;
     }
-    continue;
+    if (editableAdapterPaths.has(to)) writeFileSync(destination, managedAdapterText(join(source, from), manifest, mode, true), 'utf8');
+    else {
+      cpSync(join(source, from), destination);
+      if (to === '.claude/settings.json') {
+        const incoming = readJson(join(source, from));
+        mergeRecords.set(to, { mergeOwned: true, mergeAdded: claudeSettingsAdditions({}, incoming) });
+      }
+    }
+    writtenCopies.set(from, to);
   }
-  if (editableAdapterPaths.has(to)) writeFileSync(destination, managedAdapterText(join(source, from), manifest, mode, true), 'utf8');
-  else cpSync(join(source, from), destination);
-  writtenCopies.set(from, to);
+  const installedPolicyPath = join(target, 'standards/project.json');
+  installedPolicy = readJson(installedPolicyPath);
+  installedPolicy.framework = manifest.stack; installedPolicy.platform = manifest.platform; installedPolicy.stack.unitTestRunner = unitTestRunner;
+  for (const [flag, key] of [['e2e-runner', 'e2eRunner'], ['styling', 'styling'], ['state-management', 'stateManagement'], ['server-state', 'serverState']]) if (option(flag)) installedPolicy.stack[key] = option(flag);
+  writeJson(installedPolicyPath, installedPolicy);
+  renderRoutingTable(target, manifest.stack, manifest.runnerReferences[unitTestRunner]);
+  if (adapters.includes('copilot')) {
+    const destination = join(target, '.github/copilot-instructions.md'); ensureInstallDirectory(dirname(destination));
+    try { generateCopilot({ stack, platform: manifest.platform, root: join(source, 'standards'), policyPath: installedPolicyPath, out: destination }); }
+    catch (error) { throw new Error(`Copilot adapter failed: ${error.message}`); }
+    writtenCopies.set('GENERATED:copilot', '.github/copilot-instructions.md');
+  }
+  const lock = { schemaVersion: 2, standardsVersion: installedPolicy.standardsVersion, manifest: stack, mode, unitTestRunner, adapters, modules: [], partialAdapters, files: {} };
+  for (const [from, to] of writtenCopies) if (!['standards/project.json', 'standards/execution.json'].includes(to)) lock.files[to] = { source: from, sourceHash: from.startsWith('GENERATED:') ? hashFile(join(target, to)) : hashFile(join(source, from)), installedHash: hashFile(join(target, to)), ...(editableAdapterPaths.has(to) ? { editable: true } : {}), ...(preservedAdapterPaths.has(to) ? { preserved: true } : {}), ...(to === '.claude/settings.json' ? { merge: 'claude-settings', ...mergeRecords.get(to) } : {}) };
+  writeJson(join(target, 'standards/install-lock.json'), lock);
+} catch (error) {
+  for (const [path, snapshot] of installSnapshots) {
+    const destination = join(target, path);
+    if (snapshot === null) { if (existsSync(destination)) rmSync(destination); }
+    else { mkdirSync(dirname(destination), { recursive: true }); writeFileSync(destination, snapshot); }
+  }
+  for (const directory of [...new Set(createdDirectories)].sort((a, b) => b.length - a.length)) if (existsSync(directory)) { try { rmdirSync(directory); } catch {} }
+  if (!targetExistedBeforeInstall && existsSync(target)) { try { rmdirSync(target); } catch {} }
+  fail(`Install rolled back: ${error.message}`);
 }
-const installedPolicyPath = join(target, 'standards/project.json'), installedPolicy = readJson(installedPolicyPath);
-installedPolicy.framework = manifest.stack; installedPolicy.platform = manifest.platform; installedPolicy.stack.unitTestRunner = unitTestRunner;
-for (const [flag, key] of [['e2e-runner', 'e2eRunner'], ['styling', 'styling'], ['state-management', 'stateManagement'], ['server-state', 'serverState']]) if (option(flag)) installedPolicy.stack[key] = option(flag);
-writeJson(installedPolicyPath, installedPolicy);
-renderRoutingTable(target, manifest.stack, manifest.runnerReferences[unitTestRunner]);
-if (adapters.includes('copilot')) {
-  const destination = join(target, '.github/copilot-instructions.md'); mkdirSync(dirname(destination), { recursive: true });
-  try { generateCopilot({ stack, platform: manifest.platform, root: join(source, 'standards'), policyPath: installedPolicyPath, out: destination }); }
-  catch (error) { fail(`Copilot adapter failed: ${error.message}`); }
-  writtenCopies.set('GENERATED:copilot', '.github/copilot-instructions.md');
-}
-const lock = { schemaVersion: 2, standardsVersion: installedPolicy.standardsVersion, manifest: stack, mode, unitTestRunner, adapters, modules: [], partialAdapters, files: {} };
-for (const [from, to] of writtenCopies) if (!['standards/project.json', 'standards/execution.json'].includes(to)) lock.files[to] = { source: from, sourceHash: from.startsWith('GENERATED:') ? hashFile(join(target, to)) : hashFile(join(source, from)), installedHash: hashFile(join(target, to)), ...(editableAdapterPaths.has(to) ? { editable: true } : {}), ...(preservedAdapterPaths.has(to) ? { preserved: true } : {}), ...(to === '.claude/settings.json' ? { merge: 'claude-settings' } : {}) };
-writeJson(join(target, 'standards/install-lock.json'), lock);
 if (partialAdapters.length) console.log(`Installed with partial adapter integration:\n${partialAdapters.map((x) => `- ${x}`).join('\n')}`);
 else console.log('Installed. Fill project policy and trusted standards/execution.json commands, then run check.');
