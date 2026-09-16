@@ -245,6 +245,50 @@ try {
       if (/\{stack\}|\{web\\?\|native\}/.test(rules)) errors.push(`Installer ${manifestName}/${mode}: unresolved routing placeholder`);
   })));
 
+  const qualityTarget = join(generatedDir, 'install-react-greenfield');
+  const quality = (extra = []) => spawnSync(process.execPath, ['scripts/quality.mjs', '--target', qualityTarget, ...extra], { cwd: root, encoding: 'utf8' });
+  const passingQuality = quality();
+  if (passingQuality.status !== 0) errors.push(`Quality runner rejects configured gates: ${passingQuality.stderr.trim()}`);
+  const qualityExecutionPath = join(qualityTarget, 'standards/execution.json');
+  const qualityExecution = JSON.parse(readFileSync(qualityExecutionPath, 'utf8'));
+  qualityExecution.commands.test = { executable: process.execPath, args: ['-e', 'process.exit(7)'] };
+  writeFileSync(qualityExecutionPath, JSON.stringify(qualityExecution), 'utf8');
+  const failingQuality = quality();
+  if (failingQuality.status === 0 || !failingQuality.stdout.includes('Running test')) errors.push('Quality runner accepts a failing test gate');
+  qualityExecution.commands.test = { executable: process.execPath, args: ['--version'] };
+  qualityExecution.commands.lint = { executable: process.execPath, args: ['-e', 'process.exit(8)'] };
+  qualityExecution.commands.lintChanged = { executable: process.execPath, args: ['-e', 'const files = JSON.parse(process.env.AI_WORKFLOW_CHANGED_FILES); if (!files.includes("src/pilot.ts")) process.exit(9)'] };
+  writeFileSync(qualityExecutionPath, JSON.stringify(qualityExecution), 'utf8');
+  const git = (...gitArgs) => spawnSync('git', gitArgs, { cwd: qualityTarget, encoding: 'utf8' });
+  mkdirSync(join(qualityTarget, 'src'));
+  writeFileSync(join(qualityTarget, 'src/pilot.ts'), 'export const value = 1;\n', 'utf8');
+  for (const gitArgs of [['init', '-q'], ['add', '.'], ['-c', 'user.name=Pilot', '-c', 'user.email=pilot@example.invalid', 'commit', '-qm', 'baseline']]) {
+    const result = git(...gitArgs);
+    if (result.status !== 0) errors.push(`Quality pilot git setup: ${result.stderr.trim()}`);
+  }
+  const base = git('rev-parse', 'HEAD').stdout.trim();
+  writeFileSync(join(qualityTarget, 'src/pilot.ts'), 'export const value = 2;\n', 'utf8');
+  git('add', 'src/pilot.ts');
+  git('-c', 'user.name=Pilot', '-c', 'user.email=pilot@example.invalid', 'commit', '-qm', 'change');
+  const changedQuality = quality(['--base-ref', base]);
+  if (changedQuality.status !== 0 || !changedQuality.stdout.includes('Running lintChanged')) errors.push(`Quality runner does not use PR changed-file lint: ${changedQuality.stderr.trim()}`);
+  const fullLintQuality = quality();
+  if (fullLintQuality.status === 0) errors.push('Quality runner skips failing full lint without a PR base');
+  qualityExecution.commands.lint = { executable: process.execPath, args: ['--version'] };
+  qualityExecution.commands.coverage = { executable: process.execPath, args: ['-e', 'process.exit(10)'] };
+  writeFileSync(qualityExecutionPath, JSON.stringify(qualityExecution), 'utf8');
+  const qualityPolicyPath = join(qualityTarget, 'standards/project.json');
+  const qualityPolicy = JSON.parse(readFileSync(qualityPolicyPath, 'utf8'));
+  qualityPolicy.testing.coverage.mode = 'report-only';
+  writeFileSync(qualityPolicyPath, JSON.stringify(qualityPolicy), 'utf8');
+  const reportOnlyQuality = quality();
+  if (reportOnlyQuality.status !== 0 || !reportOnlyQuality.stdout.includes('Coverage is report-only')) errors.push(`Quality runner enforces report-only coverage: ${reportOnlyQuality.stderr.trim()}`);
+  const hookScript = join(root, 'enforcement/hooks/check-standards.mjs');
+  const enabledHook = spawnSync(process.execPath, [hookScript], { cwd: qualityTarget, encoding: 'utf8', env: { ...process.env, AI_WORKFLOW_SOURCE: root } });
+  if (enabledHook.status !== 0) errors.push(`Optional standards hook rejects a valid install: ${enabledHook.stderr.trim()}`);
+  const unconfiguredHook = spawnSync(process.execPath, [hookScript], { cwd: qualityTarget, encoding: 'utf8', env: { ...process.env, AI_WORKFLOW_SOURCE: '' } });
+  if (unconfiguredHook.status === 0) errors.push('Optional standards hook silently passes without a source checkout');
+
   const dryTarget = join(generatedDir, 'dry-run-must-not-exist');
   const dryRun = spawnSync(process.execPath, ['scripts/standards.mjs', 'install', '--target', dryTarget, '--manifest', 'vue', '--mode', 'greenfield'], { cwd: root, encoding: 'utf8' });
   if (dryRun.status !== 0 || existsSync(dryTarget)) errors.push('Installer dry run writes files or fails');

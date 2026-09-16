@@ -30,16 +30,11 @@ React Native: simulator screenshot or Maestro. There is no ephemeral path.
 
 ## Step 3 — Capture the baseline
 
-For a change to **existing** UI, the before state is where the value is:
-
-```bash
-git stash              # baseline
-# start dev server, capture
-git stash pop          # your change
-# capture again
-```
-
-Skip only for genuinely new UI with no previous state.
+For a change to **existing** UI, use a baseline captured before editing, an
+existing trusted screenshot, or a separate clean checkout of the base revision.
+Keep the current worktree untouched. If no comparable baseline is available,
+capture the after state and report that the before/after comparison was not
+possible. New UI has no previous state to compare.
 
 ## Step 4 — Capture
 

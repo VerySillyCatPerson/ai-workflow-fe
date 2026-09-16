@@ -51,16 +51,14 @@ Adding a dev dependency is a supply-chain decision under `core/guardrails.md`.
 ```
 
 **Before/after is what makes this useful.** A single "after" screenshot only
-proves something rendered. For a change to existing UI:
+proves something rendered. For existing UI, use a screenshot captured before
+editing, an existing trusted screenshot, or a separate clean checkout of the
+base revision. Do not disturb the current worktree to obtain a baseline.
 
-```
-git stash                → capture baseline
-git stash pop            → capture after
-```
-
-Compare the two directly. Report what changed, including anything you did **not**
-intend to change — unintended layout shift elsewhere on the page is the single
-most common regression this catches.
+Compare the two directly when a comparable baseline exists. If it does not,
+report that limit and still inspect the rendered after state. Report anything
+you did **not** intend to change — unintended layout shift elsewhere on the
+page is the single most common regression this catches.
 
 For a component with a story, screenshot the story rather than booting the whole
 app: faster, isolated, and deterministic.
@@ -84,7 +82,8 @@ unverified.** Do not substitute a unit test and call it verified.
 ## What counts as verified
 
 - [ ] The affected UI was **rendered and looked at**, not inferred
-- [ ] Compared against the before state for anything pre-existing
+- [ ] Compared against the before state for pre-existing UI, or reported why a
+      comparable baseline was unavailable
 - [ ] Console clean, or the noise explained
 - [ ] Narrow and wide viewport (web) or both platforms (native) for layout work
 - [ ] Unintended visual changes reported, not just the intended one
@@ -99,7 +98,7 @@ that someone — you — looked at the actual output before claiming it works.
 ❌ Claiming visual verification from a passing unit test
 ❌ Installing Playwright or Cypress into `package.json` without asking
 ❌ Adding a second browser-automation tool alongside an existing one
-❌ A single "after" screenshot on a change to existing UI — the diff is the value
+❌ Claiming a before/after comparison from a single "after" screenshot
 ❌ Screenshotting only the happy path when loading, empty, and error states also
    changed (`core/rules.md` requires all four)
 ❌ Ignoring console errors because the page looks right

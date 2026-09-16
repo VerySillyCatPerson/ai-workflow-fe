@@ -9,11 +9,10 @@ Conventions: `standards/reference/git-pr.md`. Thresholds: `standards/core/rules.
 
 ## Step 1 — Branch and scope
 
-```bash
-git status
-git log origin/main..HEAD --oneline
-git diff main...HEAD --stat | tail -1
-```
+Find the PR's actual base branch from the PR metadata or repository settings.
+If it cannot be determined, ask rather than assuming `main`. Then inspect
+`git status`, the commit range from that base, and the full diff, including
+uncommitted changes that would need to be included before opening a PR.
 
 Check: branch name follows the type convention, based on the right base branch,
 no untracked files that should be included, no committed files that should not be
@@ -26,16 +25,15 @@ of feature work with dependency bumps, unrelated refactors, or config changes.
 
 ## Step 2 — Quality gate
 
-Run the five gates from `standards/reference/git-pr.md` in order, using this project's script
-names (they differ by framework — check `package.json`). **Stop at the first
-failure and report it.** Do not proceed to drafting a description for a branch
-that does not build.
+Run the five gates from `standards/reference/git-pr.md` in order, using only
+commands declared in trusted `standards/execution.json`. When a gate has no
+declared command, report it as unavailable instead of guessing a script from
+`package.json`. **Stop at the first failing configured gate and report it.**
+Do not present an unverified branch as ready for review.
 
 ## Step 3 — Commit messages
 
-```bash
-git log origin/main..HEAD --format="%s"
-```
+Read commit subjects in the range from the actual base branch to `HEAD`.
 
 Verify each against the Conventional Commits rules in `standards/reference/git-pr.md`. List any
 that are vague or malformed, and suggest rewrites.

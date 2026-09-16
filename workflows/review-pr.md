@@ -16,14 +16,17 @@ Read the title and description first. Confirm:
 - Screenshots or recordings are present for any user-visible change
 - Size is within the PR cap in `standards/core/rules.md`, or the exception is justified
 
-If the description is missing or the diff contradicts it, stop and ask. Reviewing
-a change whose purpose you have inferred wastes both people's time.
+If the description is missing or contradicts the diff, record an intent gap and
+continue reviewing what can be established from the code and tests. Do not
+invent product intent or approve until that gap is resolved.
 
 ## Step 2 — Quality gates
 
-Confirm the pipeline is green before reading code: lint, typecheck, tests at the
-configured coverage policy, production build, dependency audit. **Any red gate → request
-changes immediately and stop.**
+Confirm the pipeline status before reading code: lint, typecheck, tests at the
+configured coverage policy, production build, and dependency audit. Record red,
+missing, or unavailable gates as findings, then inspect the diff for other
+material defects. A red required gate blocks approval but does not make the
+remaining code review disappear.
 
 ## Step 3 — Standards review
 
@@ -52,6 +55,9 @@ and accessible name; loading, empty, and error paths tested.
 
 Apply the decision table in `standards/reference/git-pr.md`. Cite `file:line` for every blocker.
 Prefix non-blocking suggestions with `nit:` so the author can tell them apart.
+Report the reviewed files and commits, gate evidence, blockers, non-blocking
+findings, and any area that could not be checked. After author revisions,
+recheck affected gates and changed files before changing the decision.
 
 ## Anti-patterns
 

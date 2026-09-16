@@ -426,8 +426,11 @@ you actually have:
 - **Git hooks** — `enforcement/` has templates you adapt to your project's
   commands. Runs for everyone, including humans.
 
-There is no universal CI backstop here. A rule is CI-enforced only when your repo
-configures a CI job for it. Do not let anyone claim otherwise.
+There is no universal CI backstop. An optional consuming-repo template lives at
+`enforcement/standards-ci.yml`; copy and configure it with the source repository,
+reviewed source ref, dependency install command, and trusted project commands
+before treating the checks as CI-enforced. The hook template is also manual and
+is not copied by the installer.
 
 ## Using it across several teams
 
@@ -485,6 +488,9 @@ node scripts/standards.mjs map check --target ../project
 node scripts/validate.mjs               # static checks, then real installs
 node scripts/validate.mjs --fast        # static checks only; skips the install matrix
 node scripts/validate.mjs --integration # same coverage as the full run, labelled for CI
+
+# Run declared quality gates against an installed project (after dependencies exist)
+node scripts/quality.mjs --target ../project
 ```
 
 Install refuses to overwrite existing files. Sync compares hashes recorded in
@@ -514,9 +520,9 @@ standards/
   platform/       always loaded · web.md · native.md
   framework/      always loaded · nextjs · react · vue · angular · react-native
   reference/      on demand · 23 files, routed from core/rules.md
-workflows/        23 prompt docs, tool-agnostic
+workflows/        portable task and end-to-end workflow docs
 adapters/         claude · agents · cursor · copilot · qwen · kimi
-enforcement/      git hook templates; adapt before enabling
+enforcement/      optional git hook and CI templates; adapt before enabling
 adoption/         rollout · conformance · governance · estate
 manifests/        per-stack install sets
 templates/        project presets, schema, tsconfig base
@@ -533,7 +539,9 @@ standards.json    version marker
 | `init` | Bootstrap a new project — tsconfig, test utils, gates |
 | `onboard` | Audit an existing repo → gap report and phased plan |
 | `standards-sync` | Find version drift and local edits |
+| `standards-lifecycle` | Carry adoption or upgrade through preview, validation, and reviewable delivery |
 | `component`, `feature` | Scaffold to your stack |
+| `deliver-feature`, `fix-bug` | Carry feature and bug work through implementation, proof, and review |
 | `extract-logic` | Move data logic into a hook, composable, or service |
 | `test` | Write a unit test |
 | `verify` | Actually render the UI and look at it |
@@ -574,6 +582,65 @@ One framework file, one testing reference, one adapter entry, one manifest.
 `MAINTAINING.md` has the layering rules that keep it to that.
 
 </details>
+
+---
+
+## HOW TO USE (SIMPLIFIED)
+
+Run setup commands from this repo; point `--target` at the project you want to
+work on. The examples below use a Vue app at `../my-app`. Swap the manifest and
+adapter for your stack and assistant.
+
+**Put the standards in an existing app.** Preview first, then apply. Fill in
+`standards/project.json` and the real commands in `standards/execution.json`
+before expecting checks to pass.
+
+```bash
+node scripts/standards.mjs install --target ../my-app --manifest vue --mode legacy --adapter codex
+node scripts/standards.mjs install --target ../my-app --manifest vue --mode legacy --adapter codex --apply
+node scripts/standards.mjs check --target ../my-app
+```
+
+**Build something across several files.** In the app, ask your assistant:
+
+> Add a searchable FAQ with an empty state. Follow `workflows/deliver-feature.md`.
+
+That workflow takes the request through the implementation, tests, applicable
+browser checks, and a review of the whole diff. For one small component,
+`workflows/component.md` is enough.
+
+**Fix a regression.** Give the assistant a trigger and the expected result:
+
+> Searching for "lodz" misses "Łódź". Reproduce it, fix it, and follow
+> `workflows/fix-bug.md`.
+
+**Add rules when the app needs them.** The first form with real validation is a
+good time to add the forms module. This does not change the rest of your app.
+
+```bash
+node scripts/standards.mjs add-module --target ../my-app --module forms --apply
+```
+
+**Check the result.** The project must have its dependencies installed and
+trusted commands configured before the quality runner can use them. For a UI
+change, also ask the assistant to follow `workflows/verify.md` and inspect the
+actual page at the relevant sizes.
+
+```bash
+node scripts/quality.mjs --target ../my-app
+```
+
+**Pick up a newer version.** Preview the sync and review local edits before
+applying it. `workflows/standards-lifecycle.md` covers the same upgrade as a
+reviewable task; the command does the file work.
+
+```bash
+node scripts/standards.mjs sync --target ../my-app
+node scripts/standards.mjs sync --target ../my-app --apply
+```
+
+The CI and hook files in `enforcement/` are optional templates. Copying the
+standards does not turn them on.
 
 ---
 
