@@ -1,13 +1,16 @@
 ---
-description: Review staged changes against the project's loaded standards — types, component quality, styling, i18n, accessibility, error handling — with a go/no-go verdict. Use before committing or when asked to review changes or a diff.
+description: Review a supplied diff or all task changes against the project's loaded standards — types, component quality, styling, i18n, accessibility, error handling — with a go/no-go verdict. Use before committing or when asked to review changes or a diff.
 allowed-tools: Bash(git diff:*), Bash(git status:*), Read, Grep
 ---
 
-# Review Staged Changes
+# Review Changes
 
 ## Step 1 — Load context
 
-Run `git diff --staged`. Read `standards/project.json`, then the framework and platform standards imported by
+Use the supplied diff when one is provided. Otherwise inspect `git status`,
+staged and unstaged diffs, and relevant untracked files. State the reviewed
+scope and any files excluded. Read `standards/project.json`, then the framework
+and platform standards imported by
 this project's agent instruction file — the styling and accessibility rules in particular
 differ by platform, and reviewing web rules against React Native code produces
 confidently wrong findings.

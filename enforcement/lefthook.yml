@@ -10,6 +10,10 @@ pre-commit:
       glob: '*'
       run: node enforcement/hooks/guard-staged.mjs {staged_files}
 
+    # Enable after AI_WORKFLOW_SOURCE points to a reviewed source checkout:
+    # standards-check:
+    #   run: node enforcement/hooks/check-standards.mjs
+
     # Add format, lint, typecheck, test, coverage, build, and commit-message
     # commands only when execution.json declares the corresponding command and
     # policy. Do not use npx or assume npm, pnpm, Yarn, or a test runner.

@@ -29,9 +29,10 @@ From `manifests/{stack}.json`, the `core` sets only:
 - **Adapter for the user's tool** → see `adapters/README.md` for the mapping.
   Ask which tool they use rather than assuming; installing two is fine, since
   both point at the same `standards/`. Then fill in **Project specifics**
-- **`enforcement/`** → `lefthook.yml` + `enforcement/hooks/`, **committed**, then
-  adapt its commands to trusted `standards/execution.json` before enabling it. It is an
-  optional local check, not a universal CI backstop. Never invoke `npx`.
+- **`enforcement/`** is optional manual wiring, not copied by the installer.
+  Copy and adapt the local hook template only when the project will use it.
+  The consuming-repo CI template also needs a reviewed source checkout and
+  dependency install command before enabling. Never invoke `npx`.
 - **Tool hooks**, if the user's tool supports them — the adapter's `hooks/`
   directory into wherever that tool expects them (`adapters/README.md`). These
   catch the same problems earlier, at edit time: an accelerator, never the only
@@ -76,8 +77,9 @@ and the hook-rendering helper wrapped in every provider the app uses — query
 client, theme, i18n, router, auth, and navigation on native. Re-export the rest
 of the testing library so a test needs one import.
 
-Read `reference/testing-{stack}.md` for this stack's specifics before writing it.
-Ask which providers the project will use rather than guessing.
+Read `standards/reference/testing.md` and the installed runner-specific testing
+reference selected by `standards/project.json#stack.unitTestRunner` before
+writing it. Ask which providers the project will use rather than guessing.
 
 ## Step 6 — Quality gates
 

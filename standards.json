@@ -1,7 +1,7 @@
 {
   "name": "ai-workflow-fe",
-  "version": "1.2.0",
-  "updated": "2026-08-15",
+  "version": "1.3.0",
+  "updated": "2026-09-16",
 
   "$comment": [
     "This file is copied into each consuming project as standards/standards.json.",
@@ -35,6 +35,8 @@
   },
 
   "changelog": {
+    "1.3.0": "Added connected feature, bug-fix, and standards-lifecycle workflows, broadened PR review coverage, corrected initialization and diff-review instructions, and supplied a quality runner with optional consuming-repo CI and pre-commit integrity checks.",
+    "1.2.1": "Made feature scaffolding follow the actual behavior and data shape, and replaced stash-based visual baselines with non-disruptive comparison options.",
     "1.2.0": "Added guided setup with one consolidated preview and reviewed package commands, rollback-protected install, sync, wizard, module, and uninstall operations, deterministic symlink-safe Code Map navigation with re-export and local usage tracking, first-class Qwen and Kimi adapters, strict integration validation and Jira project boundaries, contained managed-file lifecycle operations, reversible Claude settings merges, complete execution-schema validation, plus Linux and Windows CI configuration.",
     "1.1.0": "Separated executable validation commands from agent-editable project policy, added guarded execution configuration and safe legacy migration, expanded installer/sync/uninstall safety coverage, and introduced opt-in Figma and Jira capabilities with design-to-code and ticket-to-code workflows."
   }

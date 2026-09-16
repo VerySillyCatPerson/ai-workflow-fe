@@ -1,0 +1,44 @@
+# Copy to .github/workflows/standards.yml in a consuming repository.
+# Set AI_WORKFLOW_SOURCE_REPO to the standards repository (owner/name).
+name: Installed standards and quality
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source configuration
+        env:
+          AI_WORKFLOW_SOURCE_REPO: ${{ vars.AI_WORKFLOW_SOURCE_REPO }}
+          AI_WORKFLOW_SOURCE_REF: ${{ vars.AI_WORKFLOW_SOURCE_REF }}
+          AI_WORKFLOW_INSTALL: ${{ vars.AI_WORKFLOW_INSTALL }}
+        run: test -n "$AI_WORKFLOW_SOURCE_REPO" && test -n "$AI_WORKFLOW_SOURCE_REF" && test -n "$AI_WORKFLOW_INSTALL"
+      - uses: actions/checkout@v4
+        with:
+          path: project
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.AI_WORKFLOW_SOURCE_REPO }}
+          ref: ${{ vars.AI_WORKFLOW_SOURCE_REF }}
+          path: standards-source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install project dependencies
+        working-directory: project
+        env:
+          AI_WORKFLOW_INSTALL: ${{ vars.AI_WORKFLOW_INSTALL }}
+        run: sh -c "$AI_WORKFLOW_INSTALL"
+      - name: Check installed standards and quality gates
+        env:
+          AI_WORKFLOW_BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: node standards-source/scripts/quality.mjs --target project

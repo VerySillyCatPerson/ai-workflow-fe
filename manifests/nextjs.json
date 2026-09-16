@@ -2,7 +2,7 @@
   "stack": "nextjs",
   "platform": "web",
   "adapter": "adapters/{tool}/ — pick the entry for your tool; see adapters/README.md",
-  "enforcement": "enforcement/ — install for ALL tools (lefthook + CI)",
+  "enforcement": "enforcement/ — optional manual hook and CI templates; not copied by the installer",
   "toolHooks": "adapters/{tool}/hooks/ if the tool supports them — an accelerator, never the only layer",
 
   "$comment": [
@@ -69,10 +69,14 @@
     "core": [
       "workflows/init.md",
       "workflows/onboard.md",
+      "workflows/deliver-feature.md",
+      "workflows/fix-bug.md",
+      "workflows/standards-lifecycle.md",
       "workflows/component.md",
       "workflows/test.md",
       "workflows/verify.md",
       "workflows/review.md",
+      "workflows/review-pr.md",
       "workflows/draft-pr.md",
       "workflows/precheck.md",
       "workflows/standards-sync.md"
@@ -81,7 +85,6 @@
       "workflows/feature.md": "scaffolding whole feature modules",
       "workflows/extract-logic.md": "refactoring components into controller hooks",
       "workflows/split.md": "recurring oversized components",
-      "workflows/review-pr.md": "reviewing others' PRs, not just your own diff",
       "workflows/anycheck.md": "type-safety cleanup pass",
       "workflows/hardcoded.md": "i18n audit",
       "workflows/changelog.md": "release notes",

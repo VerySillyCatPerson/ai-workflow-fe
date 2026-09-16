@@ -19,34 +19,40 @@ Follow them. Do not invent a structure when a canonical one exists.
 
 ## Step 2 — Gather inputs
 
-Feature name from `$ARGUMENTS` or ask. Confirm the primary data entity and
-whether the feature is list-shaped (table, filters, pagination) or detail-shaped.
+Feature name from `$ARGUMENTS` or ask. Identify the user-facing behavior,
+primary data entity (if any), and whether the feature needs a list, detail,
+form, or other shape. Check existing routes, components, data contracts, and
+project policy before deciding what to create.
 
 ## Step 3 — Generate
 
 Create the structure from the framework standard, containing:
 
-**Types** — the main entity and a `Filters` type. No `any`.
+**Types** — model only the inputs, entities, and outputs the feature needs. Add
+filter types only when filtering is part of the behavior. No `any`.
 
-**Data layer** — named per the framework standard, exposing at minimum `data`,
-`loading`, `totalCount`, `filters`, and handlers for search and filter change.
-Fully typed. Transforms the API response into the shape the UI needs rather than
-passing it through raw. Contains no rendering logic.
+**Data layer** — when the feature fetches or mutates data, use the framework's
+separation primitive and expose the states and handlers its behavior needs.
+Lists may need totals, filters, search, and pagination; detail or form features
+may not. Fully type the contract and transform API responses where the UI needs
+a different shape. Keep rendering logic out of the data layer.
 
-**Page/screen component** — thin. Consumes the data layer and handles all four
-states from `standards/core/rules.md`: loading, empty, error, success. Delegates
-rendering to sub-components.
+**Page/screen component** — when the feature has a route, keep it thin and handle
+the applicable loading, empty, error, and success states from
+`standards/core/rules.md`. Delegate substantial rendering to sub-components.
 
-**Presentational components** — no data fetching. Props in, events out.
+**Presentational components** — create them when they clarify the feature's
+responsibilities. No data fetching; props in, events out.
 
-**Locale keys** — every user-facing string, added to **all** locale files. Mark
-untranslated values `TODO: translate` so they are greppable.
+**Locale keys** — when the project has a translation layer, add every new
+user-facing string to all required locale files. Mark untranslated values
+`TODO: translate` so they are greppable.
 
 ## Step 4 — Report
 
-List every file created, and flag anything the user still needs to wire up
-(route registration, navigation entry, i18n namespace registration, store
-registration).
+List every file created or changed, the behavior and states covered, validation
+run, and any integration still needed (route, navigation, translation namespace,
+or store registration).
 
 ## Anti-patterns
 
